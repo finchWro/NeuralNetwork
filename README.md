@@ -8,7 +8,7 @@ jednowarstwowa) po uczenie wsteczną propagacją błędu (sieć dwuwarstwowa, pr
 
 | Plik | Opis |
 | --- | --- |
-| `prezentacja_sieci_neuronowe_pelna.html` | Pełna prezentacja: teoria → obrazek → odniesienie do kodu (neuron, sigmoida, reguła delty, backpropagation, pełne kroki uczenia liczbowo). |
+| `prezentacja_sieci_neuronowe_pelna_PL_EN.html` | Pełna **dwujęzyczna** prezentacja (PL/EN, przełącznik języka): teoria → obrazek → odniesienie do kodu (neuron, sigmoida, reguła delty, backpropagation, pełne kroki uczenia liczbowo). |
 | `sieci_jednowarstwowe_w_pythonie_stud.ipynb` | Notebook (Google Colab) — sieć **jednowarstwowa** (klasyfikacja, reguła delty). |
 | `sieci_dwuwarstwowe_w_pythonie_stud.ipynb` | Notebook (Google Colab) — sieć **dwuwarstwowa** (warstwa ukryta, backpropagation, XOR). |
 
@@ -19,7 +19,7 @@ jednowarstwowa) po uczenie wsteczną propagacją błędu (sieć dwuwarstwowa, pr
 
 ## Prezentacja
 
-Otwórz plik `prezentacja_sieci_neuronowe_pelna.html` w przeglądarce. Prezentacja obejmuje m.in.:
+Otwórz plik `prezentacja_sieci_neuronowe_pelna_PL_EN.html` w przeglądarce. Prezentacja jest **dwujęzyczna** — w prawym górnym rogu znajduje się przełącznik `PL / EN`. Obejmuje m.in.:
 
 - **Część 1 — sieć jednowarstwowa:** neuron biologiczny jako inspiracja, przejście od
   regresji liniowej do sigmoidy, architektura i inicjalizacja wag, forward pass, błąd
