@@ -124,6 +124,15 @@
     .progress { position: fixed; left: 0; bottom: 0; height: 5px; width: 100%; background: rgba(255,255,255,0.10); }
     .bar { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width 160ms ease; }
 
+    .langsel {
+      position: fixed; top: 16px; right: 18px; z-index: 50;
+      display: flex; gap: 4px; padding: 4px; border-radius: 999px;
+      background: rgba(2,6,23,0.82); border: 1px solid rgba(255,255,255,0.14); backdrop-filter: blur(10px);
+    }
+    .langsel button { padding: 6px 12px; font-size: 13px; font-weight: 800; background: transparent; color: #94a3b8; }
+    .langsel button:hover { background: rgba(255,255,255,0.08); color: #fff; }
+    .langsel button.active { background: #2563eb; color: #fff; }
+
     @media (max-width: 900px) { .triad, .cols { grid-template-columns: 1fr; } .triad .visual { grid-column: 1; grid-row: auto; } }
     @media print {
       body { overflow: visible; background: #fff; color: #000; }
@@ -1771,6 +1780,11 @@ weights_layer1_after, weights_layer2_after = train2(
 
   </main>
 
+  <div class="langsel" role="group" aria-label="Język / Language">
+    <button type="button" id="langPl">PL</button>
+    <button type="button" id="langEn">EN</button>
+  </div>
+
   <nav class="controls" aria-label="Nawigacja prezentacji">
     <button type="button" id="prev">← Wstecz</button>
     <span class="counter" id="counter"></span>
@@ -1807,6 +1821,651 @@ weights_layer1_after, weights_layer2_after = train2(
       });
     });
     showSlide(0);
+  </script>
+
+  <script>
+    // ---- PL / EN language switch -------------------------------------------
+    // Polish is the source language in the markup. The dictionary maps the
+    // trimmed text of each translatable text node to its English version.
+    // Code blocks (<pre>/<code>) are left untouched on purpose.
+    (function () {
+      const TITLE = {
+        pl: "Sieci neuronowe - od jednej do dwóch warstw (backpropagation)",
+        en: "Neural networks - from one to two layers (backpropagation)"
+      };
+
+      const I18N = {
+        // navigation
+        "← Wstecz": "← Back",
+        "Dalej →": "Next →",
+
+        // shared badges / labels
+        "Teoria": "Theory",
+        "Kod": "Code",
+        "Kod (train2)": "Code (train2)",
+
+        // slide 1 - title
+        "Sieci neuronowe": "Neural networks",
+        "od jednej do dwóch warstw": "from one to two layers",
+        "Od regresji logistycznej (1 warstwa) do uczenia wstecznej propagacji błędu (2 warstwy, XOR).": "From logistic regression (1 layer) to error backpropagation learning (2 layers, XOR).",
+        "Każdy slajd ma ten sam rytm:": "Every slide follows the same rhythm:",
+        "teoria": "theory",
+        "obrazek": "picture",
+        "odniesienie do kodu": "code reference",
+        ". Część 1:": ". Part 1:",
+        ", Część 2:": ", Part 2:",
+        "Autor:": "Author:",
+
+        // slide 1b - table of contents
+        "Spis treści": "Table of contents",
+        "Co Cię czeka": "What's ahead",
+        "Część 1 · sieć jednowarstwowa": "Part 1 · single-layer network",
+        "Neuron biologiczny — inspiracja": "The biological neuron — inspiration",
+        "Od regresji liniowej do sigmoidy": "From linear regression to the sigmoid",
+        "Architektura i inicjalizacja wag": "Architecture and weight initialization",
+        "Błąd, koszt i pochodne": "Error, cost and derivatives",
+        "Reguła delty — jak zmieniają się wagi": "The delta rule — how weights change",
+        "Pełny krok uczenia (liczbowo)": "Full training step (numerically)",
+        "Pętla, MSE, wyniki, generalizacja": "Loop, MSE, results, generalization",
+        "Część 2 · sieć dwuwarstwowa": "Part 2 · two-layer network",
+        "Problem XOR i warstwa ukryta": "The XOR problem and the hidden layer",
+        "Bias — ruchomy próg neuronu": "Bias — the neuron's movable threshold",
+        "Forward pass przez 2 warstwy (run2)": "Forward pass through 2 layers (run2)",
+        "Backpropagation — idea i wzory": "Backpropagation — idea and formulas",
+        "Pełny krok backpropagation (liczbowo)": "Full backpropagation step (numerically)",
+        "XOR: wynik i podsumowanie": "XOR: result and summary",
+        "Kliknij punkt, aby przejść do sekcji. Nawigacja również strzałkami ← → lub spacją.": "Click an item to jump to a section. Navigate with arrow keys ← → or the spacebar.",
+
+        // slide 2 - overview
+        "Co robi ten program?": "What does this program do?",
+        "Program buduje najprostszą sieć neuronową i uczy ją rozpoznawać zwierzęta z 5 cech. Całość to trzy funkcje:": "The program builds the simplest neural network and teaches it to recognize animals from 5 features. It's just three functions:",
+        "- tworzy wagi (pamięć sieci),": "- creates the weights (the network's memory),",
+        "- liczy odpowiedź (forward pass),": "- computes the response (forward pass),",
+        "- poprawia wagi (uczenie).": "- improves the weights (training).",
+        "losowe wagi": "random weights",
+        "odpowiedź": "response",
+        "lepsze wagi": "better weights",
+        "pętla uczenia": "training loop",
+        "Obrazek: dane płyną w dół, a uczenie zawraca, by poprawić wagi.": "Picture: data flows down, and training loops back to improve the weights.",
+
+        // slide 3 - biological neuron
+        "Wstęp teoretyczny": "Theoretical introduction",
+        "Skąd pomysł? Neuron biologiczny": "Where's the idea from? The biological neuron",
+        "dendryty (wejścia)": "dendrites (inputs)",
+        "akson (wyjście)": "axon (output)",
+        "synapsa": "synapse",
+        "Obrazek: dendryty zbierają sygnały, soma sumuje, akson wysyła wynik.": "Picture: dendrites collect signals, the soma sums them, the axon sends the result.",
+        "Odpowiedniki w kodzie": "Equivalents in code",
+        "dendryty → wejścia": "dendrites → inputs",
+        "siła synaps →": "synapse strength →",
+        "soma → suma ważona": "soma → weighted sum",
+        "próg → funkcja aktywacji (sigmoida),": "threshold → activation function (sigmoid),",
+        "akson → wyjście": "axon → output",
+        "Dlaczego ta analogia?": "Why this analogy?",
+        "Neuron „głosuje”: ważna cecha ma dużą wagę i mocniej pobudza wynik, jak silna synapsa.": "The neuron 'votes': an important feature has a large weight and excites the result more strongly, like a strong synapse.",
+
+        // slide 4 - linear regression
+        "Dlaczego suma ważona?": "Why a weighted sum?",
+        "Krok 1: regresja liniowa": "Step 1: linear regression",
+        "Neuron zaczyna jak regresja liniowa: mnoży każdą cechę przez wagę i sumuje.": "The neuron starts like linear regression: it multiplies each feature by a weight and sums them.",
+        "Waga = jak bardzo cecha przemawia za klasą (dodatnia = za, ujemna = przeciw).": "Weight = how strongly a feature argues for a class (positive = for, negative = against).",
+        "cecha x": "feature x",
+        "net_input rośnie bez ograniczeń": "net_input grows without bounds",
+        "Obrazek: suma ważona to prosta dopasowana do cech.": "Picture: the weighted sum is a line fitted to the features.",
+        "Dlaczego liniowo?": "Why linear?",
+        "To najprostszy sposób złączenia wielu cech w jedną liczbę. Problem: wynik jest nieograniczony (−∞, +∞).": "It's the simplest way to combine many features into one number. Problem: the result is unbounded (−∞, +∞).",
+
+        // slide 5 - need for probability
+        "Dlaczego to za mało?": "Why isn't that enough?",
+        "Krok 2: surowa liczba nie wystarcza": "Step 2: a raw number isn't enough",
+        "net_input (pobudzenie)": "net_input (activation)",
+        "Czy „850” znaczy ssak?": "Does '850' mean mammal?",
+        "Chcemy skali 0...1": "We want a 0...1 scale",
+        "Obrazek: dowolnych liczb nie da się czytać jak pewności.": "Picture: arbitrary numbers can't be read as confidence.",
+        "Do klasyfikacji chcemy wartości czytanej jak": "For classification we want a value read like",
+        "pewność": "confidence",
+        ": blisko 0 = „raczej nie”, blisko 1 = „raczej tak”.": ": near 0 = 'probably not', near 1 = 'probably yes'.",
+        "Dlaczego?": "Why?",
+        "Chcemy porównać 3 klasy i wskazać najbardziej prawdopodobną. Rozwiązanie: ściśnij": "We want to compare 3 classes and pick the most likely one. Solution: squash",
+        "do (0, 1)": "into (0, 1)",
+        "funkcją logistyczną (sigmoidą)": "with the logistic function (sigmoid)",
+
+        // slide 6 - sigmoid
+        "Funkcja logistyczna": "The logistic function",
+        "Krok 3: sigmoida zamienia pobudzenie w pewność": "Step 3: the sigmoid turns activation into confidence",
+        "wejście: dowolna liczba (−∞, +∞),": "input: any number (−∞, +∞),",
+        "wyjście: zawsze (0, 1),": "output: always (0, 1),",
+        "σ(0) = 0.5 - punkt niepewności.": "σ(0) = 0.5 - the point of uncertainty.",
+        "net_input (oś X, β = 5)": "net_input (X axis, β = 5)",
+        "output (oś Y)": "output (Y axis)",
+        "Obrazek: sigmoida dla β = 5 — oś X to": "Picture: the sigmoid for β = 5 — the X axis is",
+        ", oś Y to": ", the Y axis is",
+        "(0–1). Już przy net_input ≈ 0.4 wyjście rośnie do ~0.88.": "(0–1). Already at net_input ≈ 0.4 the output rises to ~0.88.",
+        "Dlaczego sigmoida?": "Why the sigmoid?",
+        "Jest gładka (ma pochodną - przyda się przy uczeniu) i daje wynik czytany jak prawdopodobieństwo klasy.": "It's smooth (it has a derivative - useful for learning) and gives a value read like a class probability.",
+
+        // slide 7 - beta
+        "Dlaczego beta = 5?": "Why beta = 5?",
+        "Parametr nachylenia β": "The slope parameter β",
+        "β steruje stromością przejścia 0 → 1:": "β controls the steepness of the 0 → 1 transition:",
+        "małe β → miękkie, niepewne decyzje,": "small β → soft, uncertain decisions,",
+        "duże β → ostre, niemal progowe decyzje.": "large β → sharp, almost threshold-like decisions.",
+        "małe β": "small β",
+        "średnie β": "medium β",
+        "duże β": "large β",
+        "Obrazek: większe β = ostrzejsza granica decyzyjna.": "Picture: a larger β = a sharper decision boundary.",
+        "Dlaczego 5?": "Why 5?",
+        "Kompromis: granica jest wyraźna, a funkcja wciąż gładka, więc uczenie pozostaje stabilne.": "A compromise: the boundary is clear yet the function stays smooth, so learning remains stable.",
+
+        // slide 8 - architecture
+        "Architektura w kodzie": "Architecture in code",
+        "5 cech wejściowych → 3 klasy": "5 input features → 3 classes",
+        "Każda cecha łączy się z każdą klasą. Macierz": "Each feature connects to each class. The matrix",
+        "ma kształt": "has shape",
+        "= 15 wag.": "= 15 weights.",
+        "Każda kolumna to osobny neuron-klasa z własnymi 5 wagami.": "Each column is a separate class-neuron with its own 5 weights.",
+        "nogi": "legs",
+        "woda": "water",
+        "latanie": "flying",
+        "pióra": "feathers",
+        "jajorodność": "egg-laying",
+        "ssak": "mammal",
+        "ptak": "bird",
+        "ryba": "fish",
+        "Obrazek: 5 wejść × 3 klasy = 15 połączeń (wag).": "Picture: 5 inputs × 3 classes = 15 connections (weights).",
+
+        // slide 8b - whole network on the "human" example
+        "Pełny obraz · przykład „człowiek”": "Full picture · the 'human' example",
+        "Cała sieć w jednym obrazku": "The whole network in one picture",
+        "← DECYZJA": "← DECISION",
+        "warstwa wejściowa · 5 cech": "input layer · 5 features",
+        "warstwa wyjściowa · 3 klasy": "output layer · 3 classes",
+        "15 wag (połączeń)": "15 weights (connections)",
+        "waga + (za klasą)": "weight + (for the class)",
+        "waga − (przeciw)": "weight − (against)",
+        "grubość = |waga|": "thickness = |weight|",
+        "Pełne obliczenia (wagi po treningu, x = [2, −5, −5, −5, −5], β = 5)": "Full calculation (weights after training, x = [2, −5, −5, −5, −5], β = 5)",
+        "ssak:": "mammal:",
+        "ptak:": "bird:",
+        "ryba:": "fish:",
+        "output = σ(5 × 3.878) = 1 / (1 + e^(−19.39)) ≈ 1.0000   ← MAX → decyzja: ssak": "output = σ(5 × 3.878) = 1 / (1 + e^(−19.39)) ≈ 1.0000   ← MAX → decision: mammal",
+        "Obrazek: przykład „człowiek” = [2, −5, −5, −5, −5] przepływa przez całą sieć — z pełnymi wzorami i obliczeniami dla każdego neuronu. Tylko „ssak” zbiera silne dodatnie pobudzenie i wygrywa.": "Picture: the 'human' example = [2, −5, −5, −5, −5] flows through the whole network — with full formulas and calculations for each neuron. Only 'mammal' collects strong positive activation and wins.",
+        "To ta sama sieć 5→3, ale na żywym przykładzie. Pięć cech (lewa) łączy się z trzema neuronami-klasami (prawa) przez 15 wag. Każdy neuron liczy własną sumę ważoną": "It's the same 5→3 network, but on a live example. Five features (left) connect to three class-neurons (right) through 15 weights. Each neuron computes its own weighted sum",
+        ", ściska ją sigmoidą i zwraca pewność w (0, 1). Najwyższe wyjście wygrywa.": ", squashes it with the sigmoid and returns confidence in (0, 1). The highest output wins.",
+        "Dlaczego ssak?": "Why mammal?",
+        "Cechy „nie-ptasie/nie-rybie” (woda, latanie, pióra, jajorodność = −5) trafiają na ujemne wagi neuronów ptak/ryba, a na dodatnie wagi neuronu ssak → tylko on dostaje duże pobudzenie ≈ 3.88 → σ ≈ 1.00.": "The 'non-bird/non-fish' features (water, flying, feathers, egg-laying = −5) meet the negative weights of the bird/fish neurons and the positive weights of the mammal neuron → only it gets a large activation ≈ 3.88 → σ ≈ 1.00.",
+
+        // slide 9 - init1
+        "init1 · dlaczego małe i losowe?": "init1 · why small and random?",
+        "Inicjalizacja wag": "Weight initialization",
+        "Wagi startują jako małe liczby losowe z zakresu [−0.1, 0.1).": "Weights start as small random numbers in the range [−0.1, 0.1).",
+        "Dlaczego małe?": "Why small?",
+        "Duże wagi wpychają sigmoidę w skrajności, gdzie jej pochodna ≈ 0 i sieć przestaje się uczyć.": "Large weights push the sigmoid into its extremes, where its derivative ≈ 0 and the network stops learning.",
+        "Dlaczego losowe?": "Why random?",
+        "Równe wagi = identyczne neurony, które nigdy się nie zróżnicują.": "Equal weights = identical neurons that never differentiate.",
+        "bezpieczny start blisko zera": "a safe start near zero",
+        "Obrazek: zakres [0,1) jest ściskany i centrowany wokół zera.": "Picture: the range [0,1) is squeezed and centered around zero.",
+
+        // slide 10 - run1
+        "Jak sieć liczy odpowiedź?": "How does the network compute its response?",
+        "Forward pass to dwa kroki: liniowy (suma ważona) i logistyczny (sigmoida).": "The forward pass is two steps: linear (weighted sum) and logistic (sigmoid).",
+        "cechy": "features",
+        "suma ważona": "weighted sum",
+        "w (0, 1)": "in (0, 1)",
+        "regresja liniowa → funkcja logistyczna": "linear regression → logistic function",
+        "Obrazek: pobudzenie net_input trafia do sigmoidy i staje się wyjściem output.": "Picture: the activation net_input goes into the sigmoid and becomes the output.",
+        "Dlaczego": "Why",
+        "Transpozycja pozwala jednym mnożeniem policzyć pobudzenie wszystkich 3 klas naraz.": "Transposition lets a single multiplication compute the activation of all 3 classes at once.",
+
+        // slide 11 - what is error
+        "Mechanizm uczenia · liczenie błędu": "The learning mechanism · computing the error",
+        "Czym właściwie jest błąd?": "What exactly is the error?",
+        "Błąd mówi, jak daleko odpowiedź jest od celu:": "The error says how far the response is from the target:",
+        "Aby mieć jedną liczbę „jak źle” dla całego przykładu, błędy podnosi się do kwadratu i sumuje (koszt).": "To get a single 'how bad' number for the whole example, the errors are squared and summed (the cost).",
+        "Klucz:": "Key:",
+        "koszt zależy od wag. Zmieniasz wagi → zmienia się output → zmienia się błąd. Uczenie = szukanie wag z najmniejszym kosztem.": "the cost depends on the weights. Change the weights → the output changes → the error changes. Learning = searching for the weights with the smallest cost.",
+        "waga w": "weight w",
+        "koszt": "cost",
+        "teraz": "now",
+        "Obrazek: każdej wadze odpowiada koszt - szukamy dna doliny.": "Picture: each weight has a cost - we look for the bottom of the valley.",
+
+        // slide 12 - sum over classes
+        "Po czym jest ta suma?": "What is the sum over?",
+        "Σ sumuje po klasach (wyjściach)": "Σ sums over the classes (outputs)",
+        "Sieć ma 3 wyjścia, więc": "The network has 3 outputs, so",
+        "i": "and",
+        "to wektory długości 3. Suma idzie po klasach": "are vectors of length 3. The sum runs over the classes",
+        "Koszt = ½ · Σ": "Cost = ½ · Σ",
+        "Dlaczego suma?": "Why a sum?",
+        "Z wielu wyjść robimy jedną liczbę. Kwadrat sprawia, że błędy się nie kasują, a duże pomyłki bolą bardziej.": "We turn many outputs into one number. Squaring keeps the errors from cancelling, and large mistakes hurt more.",
+        "Obrazek: każda klasa wnosi swój kwadrat błędu; sumujemy w jedną liczbę.": "Picture: each class contributes its squared error; we sum into one number.",
+
+        // slide 13 - derivative
+        "Dlaczego pochodna?": "Why a derivative?",
+        "Pochodna = nachylenie zbocza": "The derivative = the slope of the hill",
+        "styczna = nachylenie": "tangent = slope",
+        "idź w dół": "go downhill",
+        "jesteś tu": "you are here",
+        "Obrazek: pochodna mówi, w którą stronę i jak stromo opada błąd.": "Picture: the derivative tells which way and how steeply the error drops.",
+        "Stoisz na zboczu we mgle. Nie widzisz dna, ale": "You're standing on a hillside in fog. You can't see the bottom, but",
+        "czujesz nachylenie": "you feel the slope",
+        "- to pochodna.": "- that's the derivative.",
+        "znak": "the sign",
+        "→ w którą stronę zmienić wagę,": "→ which way to change the weight,",
+        "wielkość": "the magnitude",
+        "→ jak duży krok ma sens.": "→ how big a step makes sense.",
+        "Dlaczego nie sam błąd?": "Why not the error alone?",
+        "Błąd mówi „jest źle”, ale nie mówi": "The error says 'it's bad', but doesn't say",
+        "jak": "how",
+        "ruszyć wagi. Nachylenie wskazuje kierunek: stromo = duża poprawka, płasko = mała.": "to move the weights. The slope shows the direction: steep = a big correction, flat = a small one.",
+
+        // slide 14 - chain rule
+        "Skąd bierze się output·(1−output)": "Where does output·(1−output) come from",
+        "Reguła łańcuchowa: błąd wraca przez sigmoidę": "The chain rule: the error returns through the sigmoid",
+        "Waga nie wpływa na błąd wprost, tylko przez łańcuch:": "A weight doesn't affect the error directly, only through a chain:",
+        "weights → net_input → output → błąd": "weights → net_input → output → error",
+        "Wpływ wagi = iloczyn czułości na każdym ogniwie:": "A weight's influence = the product of sensitivities at each link:",
+        "∂błąd/∂weights = error · output(1−output) · input_vector": "∂error/∂weights = error · output(1−output) · input_vector",
+        "błąd": "error",
+        "Obrazek: poprawka = iloczyn trzech czułości wzdłuż łańcucha.": "Picture: the correction = the product of three sensitivities along the chain.",
+        "Dlaczego pochodna sigmoidy?": "Why the sigmoid's derivative?",
+        "Błąd liczymy na": "We compute the error at",
+        ", a kręcimy": ", but we turn",
+        ", które najpierw zmieniają": ", which first change",
+        ". „O ile zmieni się output, gdy ruszę net_input?” to właśnie": ". 'How much does the output change when I move net_input?' is exactly",
+
+        // slide 15 - delta rule
+        "Reguła delty · spadek gradientu": "The delta rule · gradient descent",
+        "Jak dokładnie zmieniają się wagi?": "How exactly do the weights change?",
+        "= wielkość kroku (learning_rate),": "= the step size (learning_rate),",
+        "= które cechy były aktywne,": "= which features were active,",
+        "= jak i w którą stronę poprawić.": "= how and which way to correct.",
+        "Dlaczego razy": "Why times",
+        "Wagę przy cesze zmieniamy tylko, gdy ta cecha coś wnosiła. Cecha zerowa nie rusza swojej wagi.": "We change a feature's weight only when that feature contributed something. A zero feature doesn't move its weight.",
+        "błąd jako funkcja wag": "error as a function of the weights",
+        "Obrazek: każda poprawka to krok w dół po dolinie błędu.": "Picture: each correction is a step down the error valley.",
+
+        // slide 15b - single weight
+        "Sedno · zmiana pojedynczej wagi": "The core · changing a single weight",
+        "Jak dokładnie modyfikowana jest jedna waga?": "How exactly is a single weight modified?",
+        "Wagi nie zmieniają się „hurtem”. Każda pojedyncza waga między cechą": "Weights don't change 'in bulk'. Each individual weight between feature",
+        "a neuronem": "and neuron",
+        "dostaje własną, niezależną poprawkę:": "gets its own independent correction:",
+        "— wartość cechy (jak mocno była aktywna),": "— the feature value (how strongly it was active),",
+        "— poprawka neuronu (znak = kierunek),": "— the neuron's correction (sign = direction),",
+        "— wielkość kroku.": "— the step size.",
+        "decyduje, czy waga rośnie (podbić klasę) czy maleje (wyciszyć).": "decides whether the weight grows (boost the class) or shrinks (suppress it).",
+        "Wielkość": "The magnitude",
+        "decyduje, jak mocno — cecha bliska zeru prawie nie rusza swojej wagi.": "decides how strongly — a feature near zero barely moves its weight.",
+        "krok 1 na przykładzie „ssak”:  input(nogi)=4.0,  delta=[+0.73, −0.73, −0.73],  η=0.1": "step 1 on the 'mammal' example:  input(legs)=4.0,  delta=[+0.73, −0.73, −0.73],  η=0.1",
+        "nogi → ssak": "legs → mammal",
+        "delta dodatnia → waga ROŚNIE → mocniej głosuje na ssaka": "positive delta → the weight GROWS → votes more strongly for mammal",
+        "nogi → ptak": "legs → bird",
+        "delta ujemna → waga MALEJE → wycisza ptaka": "negative delta → the weight SHRINKS → suppresses bird",
+        "woda → ssak": "water → mammal",
+        "input ≈ 0 → poprawka znikoma → waga prawie bez zmian": "input ≈ 0 → negligible correction → weight almost unchanged",
+        "Obrazek: ta sama cecha „nogi”, ale waga do ssaka rośnie, a do ptaka maleje — bo ich delty mają przeciwne znaki.": "Picture: the same feature 'legs', but the weight to mammal grows while the one to bird shrinks — because their deltas have opposite signs.",
+        "Macierz w jednej linii:": "The matrix in one line:",
+        "liczy naraz wszystkie 15 poprawek — każda komórka to po prostu": "computes all 15 corrections at once — each cell is simply",
+
+        // slide 16 - one full step (flow)
+        "Jeden pełny krok uczenia · od A do Z": "One full training step · from A to Z",
+        "Prześledźmy jedną iterację na liczbach": "Let's trace one iteration on numbers",
+        "Pętla wylosowała przykład „ssak”. Dla neuronu „ssak”:": "The loop drew the 'mammal' example. For the 'mammal' neuron:",
+        "1. wybór:": "1. choice:",
+        "2. forward:": "2. forward:",
+        "3. błąd:": "3. error:",
+        "4. delta:": "4. delta:",
+        "5. poprawka:": "5. correction:",
+        "wylosuj: input_vector + target": "draw: input_vector + target",
+        "powtórz dla kolejnego losowego przykładu": "repeat for the next random example",
+        "Obrazek: sześć podkroków jednej iteracji + powrót w pętli.": "Picture: six sub-steps of one iteration + the loop back.",
+
+        // slide 16b - full step with all parameters
+        "Pełny krok uczenia · wszystkie parametry": "Full training step · all parameters",
+        "Jeden krok uczenia — pełne wyliczenia każdego parametru": "One training step — full calculation of every parameter",
+        "Pierwszy krok pętli, wylosowany przykład „ssak”. Stałe: β = 5, learning_rate η = 0.1.": "The loop's first step, drawn example 'mammal'. Constants: β = 5, learning_rate η = 0.1.",
+        "Stan sieci PRZED  (": "Network state BEFORE  (",
+        "wiersze = cechy, kolumny = neurony-klasy · kształt (5, 3)": "rows = features, columns = class-neurons · shape (5, 3)",
+        "Dane wejściowe": "Input data",
+        "(5 cech):": "(5 features):",
+        "nogi = 4.0": "legs = 4.0",
+        "woda = 0.01": "water = 0.01",
+        "latanie = 0.01": "flying = 0.01",
+        "pióra = −1.0": "feathers = −1.0",
+        "jajorodność = −1.5": "egg-laying = −1.5",
+        "(ssak) = [1, 0, 0]": "(mammal) = [1, 0, 0]",
+        "Forward pass — pobudzenie i wyjście każdego neuronu": "Forward pass — activation and output of each neuron",
+        "net_input = Wᵀ · input_vector (suma ważona po 5 cechach):": "net_input = Wᵀ · input_vector (weighted sum over 5 features):",
+        "Błąd i delta każdego neuronu": "Error and delta of each neuron",
+        "delta = β · error · output · (1 − output)  (pochodna sigmoidy = output·(1−output)):": "delta = β · error · output · (1 − output)  (sigmoid derivative = output·(1−output)):",
+        "Poprawka każdej z 15 wag:  Δw": "Correction of each of the 15 weights:  Δw",
+        "weight_update = 0.1 · (input_vector @ delta.T) · zielone = waga rośnie, czerwone = maleje": "weight_update = 0.1 · (input_vector @ delta.T) · green = weight grows, red = shrinks",
+        "ssak (Δ)": "mammal (Δ)",
+        "ptak (Δ)": "bird (Δ)",
+        "ryba (Δ)": "fish (Δ)",
+        "nogi (4.0)": "legs (4.0)",
+        "woda (0.01)": "water (0.01)",
+        "latanie (0.01)": "flying (0.01)",
+        "pióra (−1.0)": "feathers (−1.0)",
+        "jajorodność (−1.5)": "egg-laying (−1.5)",
+        "Każda komórka =": "Each cell =",
+        ". Mocna cecha „nogi” = 4 daje duże poprawki; „woda/latanie” ≈ 0 — poprawki znikome. Znak bierze się ze znaku delty (ssak: +, ptak/ryba: −) razy znak cechy.": ". The strong feature 'legs' = 4 gives large corrections; 'water/flying' ≈ 0 — negligible corrections. The sign comes from the delta's sign (mammal: +, bird/fish: −) times the feature's sign.",
+        "Stan sieci: BYŁO → JEST (w jednej tabeli)": "Network state: BEFORE → AFTER (in one table)",
+        "każda komórka:": "each cell:",
+        "waga przed": "weight before",
+        "waga po": "weight after",
+        "· ▲ wzrost (zielone), ▼ spadek (czerwone)": "· ▲ increase (green), ▼ decrease (red)",
+        "Efekt jednego kroku:": "The effect of one step:",
+        "wagi neuronu „ssak” przy cechach dodatnich wzrosły (np. nogi: 0.0066 → 0.2985), a wagi „ptak/ryba” przy tych cechach spadły. Sieć po tym jednym kroku odrobinę pewniej wskaże ssaka — i tak 100 razy.": "the 'mammal' neuron's weights on the positive features grew (e.g. legs: 0.0066 → 0.2985), while the 'bird/fish' weights on those features fell. After this one step the network points to mammal a little more confidently — and so on 100 times.",
+
+        // slide 17 - loop step vs epoch
+        "train1 · przebieg uczenia": "train1 · the training process",
+        "Pętla: step vs epoka": "The loop: step vs epoch",
+        "Jeden": "One",
+        "= jedna poprawka na jednym losowym przykładzie. Tu pętla robi 100 stepów.": "= one correction on a single random example. Here the loop runs 100 steps.",
+        "Pełna": "A full",
+        "epoka": "epoch",
+        "= jedno przejście przez wszystkie przykłady.": "= one pass through all examples.",
+        "Dlaczego losowo?": "Why randomly?",
+        "Uczenie stochastyczne (próbka po próbce) jest proste i pozwala wagom stopniowo „osiąść”.": "Stochastic learning (sample by sample) is simple and lets the weights gradually 'settle'.",
+        "1. losuj przykład": "1. draw an example",
+        "2. policz output": "2. compute output",
+        "3. zmierz błąd": "3. measure the error",
+        "4. popraw wagi": "4. correct the weights",
+        "Obrazek: jedna iteracja = jeden step; 100 stepów = trening.": "Picture: one iteration = one step; 100 steps = training.",
+
+        // slide 17b - MSE
+        "MSE · monitorowanie uczenia": "MSE · monitoring the training",
+        "MSE — czy sieć naprawdę się uczy?": "MSE — is the network really learning?",
+        "to jedna liczba mówiąca „jak bardzo sieć się myli” w danym kroku. W kodzie liczona dla wylosowanego przykładu:": "is a single number telling 'how wrong the network is' at a given step. In code it's computed for the drawn example:",
+        "² (suma kwadratów po K=3 wyjściach),": "² (sum of squares over K=3 outputs),",
+        "= średnia po wyjściach (stąd „Mean”),": "= the average over outputs (hence 'Mean'),",
+        "= czynnik zgodny ze wzorem kosztu (ładna pochodna).": "= a factor matching the cost formula (a nice derivative).",
+        "Po co?": "What for?",
+        "Zapisujemy MSE w każdym kroku do tablicy": "We store MSE at each step in the array",
+        ", by zobaczyć trend: jeśli uczenie działa, błąd ma": ", to see the trend: if learning works, the error should",
+        "maleć": "decrease",
+        "w czasie.": "over time.",
+        "duże błędy na starcie": "large errors at the start",
+        "MSE ≈ 0 po ~10 krokach": "MSE ≈ 0 after ~10 steps",
+        "krok (step)": "step",
+        "Obrazek: rzeczywisty MSE z 100 kroków. „Kolce” to kroki, w których wylosowano słabiej nauczony przykład — szybko zanikają.": "Picture: real MSE over 100 steps. The 'spikes' are steps where a less-trained example was drawn — they vanish quickly.",
+        "Dlaczego „kolce”?": "Why the 'spikes'?",
+        "MSE liczony jest na": "MSE is computed on",
+        "jednym losowym": "a single random",
+        "przykładzie, nie na całym zbiorze. Gdy trafi się przykład jeszcze nie dopracowany, błąd na chwilę skacze — ale ogólny trend spada do zera.": "example, not the whole set. When a not-yet-refined example comes up, the error jumps for a moment — but the overall trend falls to zero.",
+
+        // slide 18 - before vs after
+        "Efekt uczenia": "The effect of training",
+        "Jak zmienia się odpowiedź sieci?": "How does the network's response change?",
+        "Przed treningiem wyjścia są chaotyczne. Po treningu zbliżają się do wektorów one-hot z": "Before training the outputs are chaotic. After training they approach the one-hot vectors from",
+        "Dlaczego działa?": "Why does it work?",
+        "Po wielu krokach wagi „nasiąkają” regułami: cechy typowe dla ssaka podbijają neuron ssaka, a wyciszają pozostałe.": "After many steps the weights 'soak up' the rules: features typical of a mammal boost the mammal neuron and suppress the others.",
+        "PRZED (chaos)": "BEFORE (chaos)",
+        "PO (porządek)": "AFTER (order)",
+        "jasna przekątna = każdy przykład trafia do swojej klasy": "a bright diagonal = each example lands in its own class",
+        "Obrazek: trening rozjaśnia przekątną - odpowiedzi zbliżają się do one-hot.": "Picture: training brightens the diagonal - the responses approach one-hot.",
+
+        // slide 19 - generalization
+        "Generalizacja": "Generalization",
+        "Nowe zwierzęta: człowiek i nietoperz": "New animals: human and bat",
+        "Sieć nie widziała tych przykładów, a i tak je klasyfikuje na podstawie wyuczonych wag.": "The network hasn't seen these examples, yet it still classifies them using the learned weights.",
+        "Dlaczego nietoperz to wyzwanie?": "Why is the bat a challenge?",
+        "Lata jak ptak, ale resztę ma jak ssak. Sieć sumuje wszystkie wpływy - wygrywa klasa o najsilniejszym łącznym pobudzeniu.": "It flies like a bird, but the rest is like a mammal. The network sums all influences - the class with the strongest combined activation wins.",
+        "nietoperz": "bat",
+        "lata + 4 łapy": "flies + 4 legs",
+        "ssak  0.99": "mammal  0.99",
+        "ptak  0.00": "bird  0.00",
+        "ryba  0.00": "fish  0.00",
+        "Obrazek: mimo skrzydeł cechy ssaka przeważają - sieć wskazuje „ssak”.": "Picture: despite the wings the mammal features prevail - the network points to 'mammal'.",
+
+        // slide 20 - summary part 1
+        "Podsumowanie": "Summary",
+        "Cała historia w jednym obrazie": "The whole story in one picture",
+        "dane": "data",
+        "regresja liniowa": "linear regression",
+        "funkcja logistyczna": "logistic function",
+        "ocena": "evaluation",
+        "reguła delty": "the delta rule",
+        "pętla: poprawione wagi wracają do forward pass": "loop: corrected weights return to the forward pass",
+        "Obrazek: regresja liniowa → funkcja logistyczna → błąd → reguła delty → powtórz.": "Picture: linear regression → logistic function → error → delta rule → repeat.",
+        "Najważniejsza myśl:": "The key takeaway:",
+        "jednowarstwowa sieć to regresja logistyczna dla wielu klas naraz, a uczenie to wielokrotne, drobne korygowanie wag w stronę mniejszego błędu.": "a single-layer network is logistic regression for many classes at once, and learning is the repeated, tiny adjustment of weights toward a smaller error.",
+
+        // slide 21 - part 2 divider
+        "Dodajemy warstwę ukrytą": "Adding a hidden layer",
+        "i backpropagation": "and backpropagation",
+        "Jedna warstwa rysuje tylko prostą granicę. Druga warstwa pozwala uczyć się granic nieliniowych — np. XOR.": "A single layer draws only a straight boundary. A second layer lets it learn non-linear boundaries — e.g. XOR.",
+        "Plik:": "File:",
+        "· funkcje": "· functions",
+        ". Nowość:": ". New:",
+        "wsteczna propagacja błędu": "error backpropagation",
+
+        // slide 22 - XOR
+        "Dlaczego jedna warstwa nie wystarcza?": "Why isn't one layer enough?",
+        "Problem XOR — granica nieliniowa": "The XOR problem — a non-linear boundary",
+        "XOR: wynik = 1, gdy wejścia są": "XOR: result = 1 when the inputs are",
+        "różne": "different",
+        "; 0, gdy": "; 0 when they are",
+        "takie same": "the same",
+        "żadna pojedyncza prosta nie oddzieli „1” od „0”. Jedna warstwa (regresja logistyczna) potrafi tylko jedną prostą granicę — więc XOR jest dla niej": "no single straight line can separate '1' from '0'. One layer (logistic regression) can draw only one straight boundary — so for it XOR is",
+        "nierozwiązywalny": "unsolvable",
+        "wejście 1": "input 1",
+        "wejście 2": "input 2",
+        "próba prostej…": "an attempt at a line…",
+        "żadna prosta nie oddzieli zielonych od czerwonych": "no line separates the greens from the reds",
+        "Obrazek: zielone (1) leżą po przekątnej, czerwone (0) po drugiej — potrzeba granicy łamanej.": "Picture: the greens (1) lie on one diagonal, the reds (0) on the other — a broken boundary is needed.",
+        "Rozwiązanie:": "Solution:",
+        "warstwa ukryta tworzy nowe cechy pośrednie, a warstwa wyjściowa łączy je w granicę nieliniową.": "a hidden layer creates new intermediate features, and the output layer combines them into a non-linear boundary.",
+
+        // slide 23 - init2
+        "init2 · dwie macierze wag": "init2 · two weight matrices",
+        "Architektura: wejście → warstwa ukryta → wyjście": "Architecture: input → hidden layer → output",
+        "Teraz są": "Now there are",
+        "dwie": "two",
+        "macierze wag i warstwa ukryta pomiędzy:": "weight matrices and a hidden layer in between:",
+        "„+1” to wiersz dla": "'+1' is a row for the",
+        "biasu": "bias",
+        "(stałe wejście −1) — o tym na kolejnym slajdzie.": "(a constant input −1) — more on the next slide.",
+        "Obrazek: sieć 2–2–1 dla XOR. Żółte „−1” to neurony biasu.": "Picture: a 2–2–1 network for XOR. The yellow '−1' are bias neurons.",
+        "Dlaczego warstwa ukryta?": "Why a hidden layer?",
+        "Neurony h₁, h₂ uczą się prostych granic, a wyjście y łączy je — tak powstaje granica łamana, której potrzebuje XOR.": "The neurons h₁, h₂ learn simple boundaries, and the output y combines them — this forms the broken boundary XOR needs.",
+
+        // slide 24 - bias
+        "Neuron biasu · stałe wejście −1": "The bias neuron · constant input −1",
+        "Po co dodatkowe wejście −1?": "Why an extra input of −1?",
+        "Bez biasu granica decyzyjna zawsze przechodzi przez zero. Bias": "Without bias the decision boundary always passes through zero. The bias",
+        "przesuwa próg": "shifts the threshold",
+        "aktywacji neuronu.": "of the neuron's activation.",
+        "Waga": "The weight",
+        "przy stałym −1 działa jak ruchomy próg.": "on the constant −1 acts as a movable threshold.",
+        "Stąd „+1” w kształcie wag:": "Hence the '+1' in the weight shape:",
+        "każda macierz ma dodatkowy wiersz na wagę biasu. W kodzie wejście warstwy budujemy przez": "each matrix has an extra row for the bias weight. In code we build the layer input with",
+        "próg = 0.5": "threshold = 0.5",
+        "bez biasu": "without bias",
+        "z biasem (przesunięta)": "with bias (shifted)",
+        "bias przesuwa, w którym miejscu neuron „zapala się”": "bias shifts where the neuron 'fires'",
+        "Obrazek: bias przesuwa krzywą sigmoidy w lewo/prawo — bez niego próg jest „przyklejony” do zera.": "Picture: bias shifts the sigmoid curve left/right — without it the threshold is 'glued' to zero.",
+
+        // slide 24b - bias direct answer
+        "Bias · odpowiedź wprost": "Bias · the direct answer",
+        "Po co bias? Bias = ruchomy próg neuronu": "Why bias? Bias = the neuron's movable threshold",
+        "Odpowiedź w jednym zdaniu": "The answer in one sentence",
+        "Bias pozwala neuronowi zdecydować, ile „dowodów” potrzeba, zanim się zapali": "Bias lets the neuron decide how much 'evidence' is needed before it fires",
+        "— przesuwa punkt, w którym wyjście przechodzi przez 0.5.": "— it shifts the point where the output crosses 0.5.",
+        "Pobudzenie z biasem to:": "The activation with bias is:",
+        "net = (w₁x₁ + w₂x₂) − próg": "net = (w₁x₁ + w₂x₂) − threshold",
+        "gdzie": "where",
+        "(waga przy stałym wejściu −1). Sieć sama uczy się tego progu.": "(the weight on the constant input −1). The network learns this threshold itself.",
+        "Problem bez biasu:": "The problem without bias:",
+        "gdy wszystkie wejścia = 0, to net = 0 i wyjście = σ(0) =": "when all inputs = 0, then net = 0 and output = σ(0) =",
+        "0.5 — zawsze": "0.5 — always",
+        ". Neuron nie potrafi nauczyć się innej odpowiedzi dla zerowego wejścia. Granica decyzyjna jest „przyklejona” do zera i nie da się jej przesunąć.": ". The neuron can't learn a different answer for zero input. The decision boundary is 'glued' to zero and can't be moved.",
+        "Przykład liczbowy": "Numerical example",
+        "Neuron z jedną cechą (waga = 1, β = 1). Chcemy, by „zapalał się” dopiero gdy": "A neuron with one feature (weight = 1, β = 1). We want it to 'fire' only when",
+        "to samo wejście x, dwie sytuacje": "the same input x, two situations",
+        "bez biasu: σ(x)": "without bias: σ(x)",
+        "z biasem w₀=0.6: σ(x−0.6)": "with bias w₀=0.6: σ(x−0.6)",
+        "0.50 ←próg": "0.50 ←threshold",
+        "Widać to wprost:": "You can see it directly:",
+        "bez biasu punkt „0.5” jest przy x=0. Bias przesuwa go do x=0.6 — neuron wymaga teraz": "without bias the '0.5' point is at x=0. Bias shifts it to x=0.6 — the neuron now requires",
+        "więcej": "more",
+        "sygnału, zanim odpowie „tak”.": "signal before it answers 'yes'.",
+        "Dlaczego to ważne dla XOR?": "Why does this matter for XOR?",
+        "Poszczególne neurony ukryte muszą mieć": "The individual hidden neurons must have",
+        "progi (jeden zapala się łatwo, drugi dopiero przy mocnym sygnale), żeby ich kombinacja utworzyła granicę łamaną. Bez biasu wszystkie progi tkwiłyby w zerze i sieć nie ułożyłaby XOR-a. Dlatego każda macierz wag ma dodatkowy wiersz (": "thresholds (one fires easily, the other only on a strong signal) so that their combination forms the broken boundary. Without bias all thresholds would be stuck at zero and the network couldn't arrange XOR. That's why each weight matrix has an extra row (",
+        "), a wejście warstwy zaczyna się od stałej": "), and the layer input starts with the constant",
+
+        // slide 25 - run2
+        "run2 · forward pass przez 2 warstwy": "run2 · forward pass through 2 layers",
+        "Sygnał płynie przez dwie warstwy": "The signal flows through two layers",
+        "Wyjście warstwy 1 staje się wejściem warstwy 2 (z dodanym biasem):": "Layer 1's output becomes layer 2's input (with bias added):",
+        "Kluczowe:": "Key point:",
+        "zwraca": "returns",
+        "oba": "both",
+        "wyjścia.": "outputs.",
+        "jest potrzebne później do backpropagation.": "is needed later for backpropagation.",
+        "wejście": "input",
+        "warstwa 1": "layer 1",
+        "warstwa 2": "layer 2",
+        "wyjście warstwy 1 = wejście warstwy 2 (+ bias)": "layer 1's output = layer 2's input (+ bias)",
+        "Obrazek: dwa razy ten sam schemat „suma ważona → sigmoida”, ułożone szeregowo.": "Picture: the same 'weighted sum → sigmoid' scheme twice, arranged in series.",
+
+        // slide 26 - backprop idea
+        "Backpropagation · serce uczenia 2 warstw": "Backpropagation · the heart of two-layer learning",
+        "Wsteczna propagacja błędu — idea": "Error backpropagation — the idea",
+        "Błąd znamy tylko na": "We know the error only at the",
+        "wyjściu": "output",
+        ". Ale poprawić trzeba też wagi warstwy ukrytej, która błędu nie „widzi” wprost.": ". But we must also correct the hidden layer's weights, which don't 'see' the error directly.",
+        "Rozwiązanie:": "Solution:",
+        "cofnij": "push back",
+        "błąd z wyjścia do warstwy ukrytej przez te same wagi": "the error from the output to the hidden layer through the same weights",
+        ", którymi sygnał szedł w przód.": "that the signal traveled forward through.",
+        "Intuicja „rozliczenia winy”:": "The 'blame assignment' intuition:",
+        "każdy neuron ukryty odpowiada za błąd na tyle, na ile mocno (przez swoje wagi) wpłynął na wyjście.": "each hidden neuron is responsible for the error in proportion to how strongly (through its weights) it influenced the output.",
+        "ukryta": "hidden",
+        "wyjście": "output",
+        "► forward: licz wyjście": "► forward: compute output",
+        "◄ backward: cofnij błąd przez W2": "◄ backward: push the error back through W2",
+        "Obrazek: niebieski = forward (w przód), czerwony = błąd cofany w tył do warstwy ukrytej.": "Picture: blue = forward, red = the error pushed back to the hidden layer.",
+
+        // slide 27 - backprop formulas
+        "Backpropagation · pełne wzory": "Backpropagation · full formulas",
+        "Cztery kroki wstecznej propagacji": "The four steps of backpropagation",
+        "Delta wyjścia": "Output delta",
+        "Tak samo jak w sieci jednowarstwowej — błąd razy pochodna sigmoidy.": "Just like in the single-layer network — error times the sigmoid derivative.",
+        "Cofnięcie błędu do ukrytej": "Pushing the error back to the hidden layer",
+        "Pomijamy wiersz wagi biasu — bias nie jest wyjściem neuronu ukrytego, więc nie cofamy do niego błędu.": "We skip the bias weight row — the bias isn't a hidden neuron's output, so we don't push error back to it.",
+        "Delta ukrytej": "Hidden delta",
+        "Znów błąd (już cofnięty) razy pochodna sigmoidy warstwy ukrytej.": "Again the error (already pushed back) times the hidden layer's sigmoid derivative.",
+        "Poprawki obu macierzy": "Corrections of both matrices",
+        "Ta sama reguła delty": "The same delta rule",
+        "co przy jednej warstwie — tylko stosowana dwa razy, każda warstwa ze swoim wejściem i swoją deltą.": "as with one layer — just applied twice, each layer with its own input and its own delta.",
+
+        // slide 27b - full two-layer step
+        "Pełny krok 2 warstw · wszystkie parametry": "Full two-layer step · all parameters",
+        "Jeden krok backpropagation — pełne wyliczenia": "One backpropagation step — full calculation",
+        "Przykład XOR: wejście (1, 0) → cel 1. Stałe: β = 5, η = 0.1. Wagi startowe losowe (seed 0 dla powtarzalności).": "XOR example: input (1, 0) → target 1. Constants: β = 5, η = 0.1. Initial weights random (seed 0 for reproducibility).",
+        "Stan sieci PRZED": "Network state BEFORE",
+        "= [1]  (XOR: różne wejścia → 1)": "= [1]  (XOR: different inputs → 1)",
+        "wejście z biasem:": "input with bias:",
+        "Forward — warstwa ukryta (h₁, h₂)": "Forward — hidden layer (h₁, h₂)",
+        "Forward — warstwa wyjściowa (y)": "Forward — output layer (y)",
+        "Backpropagation — błędy i delty": "Backpropagation — errors and deltas",
+        "Wyjście:": "Output:",
+        "Cofnięcie błędu do warstwy ukrytej (error₁ = W2[1:,:] · delta₂):": "Pushing the error back to the hidden layer (error₁ = W2[1:,:] · delta₂):",
+        "Poprawki obu macierzy (Δw = η · wejście · deltaᵀ)": "Corrections of both matrices (Δw = η · input · deltaᵀ)",
+        "Cecha": "Feature",
+        "→ jej wiersz w ΔW1 to zera (nieaktywna cecha nie rusza swoich wag). Bias (−1) zawsze aktywny, więc jego wagi się zmieniają.": "→ its row in ΔW1 is zeros (an inactive feature doesn't move its weights). The bias (−1) is always active, so its weights do change.",
+        "Stan sieci PO: BYŁO → JEST": "Network state AFTER: BEFORE → AFTER",
+        "przed": "before",
+        "po": "after",
+        "cel = 1, a sieć dała 0.6167 (za mało), więc wagi prowadzące do mocniejszego wyjścia (h₁, h₂ → y) wzrosły. To jeden z 5000 kroków — po wszystkich sieć trafia w XOR.": "target = 1, but the network gave 0.6167 (too little), so the weights leading to a stronger output (h₁, h₂ → y) grew. This is one of 5000 steps — after all of them the network nails XOR.",
+
+        // slide 28 - XOR result
+        "Wynik · XOR nauczony": "Result · XOR learned",
+        "XOR: przed i po treningu": "XOR: before and after training",
+        "Przed treningiem wszystkie wyjścia są blisko 0.5–0.6 (sieć „nie wie”). Po 5000 krokach backpropagation wyjścia trafiają w XOR.": "Before training all outputs are near 0.5–0.6 (the network 'doesn't know'). After 5000 backpropagation steps the outputs hit XOR.",
+        "Dlaczego aż 5000 kroków?": "Why as many as 5000 steps?",
+        "Granica nieliniowa jest trudniejsza niż prosta z części 1 (tam starczyło 100) — dwie warstwy potrzebują więcej iteracji, by się „dostroić”.": "A non-linear boundary is harder than the straight line from part 1 (where 100 sufficed) — two layers need more iterations to 'tune in'.",
+        "wyjście sieci dla 4 wzorców XOR (wartości reprezentatywne — wagi startowe są losowe)": "network output for the 4 XOR patterns (representative values — initial weights are random)",
+        "cel": "target",
+        "Obrazek: po treningu wyjścia są blisko celu [0, 1, 1, 0] — sieć nauczyła się XOR.": "Picture: after training the outputs are near the target [0, 1, 1, 0] — the network learned XOR.",
+
+        // slide 29 - summary 1 vs 2 layers
+        "Podsumowanie części 2": "Part 2 summary",
+        "Jedna warstwa vs dwie warstwy": "One layer vs two layers",
+        "1 warstwa (część 1)": "1 layer (part 1)",
+        "regresja logistyczna, jedna macierz wag,": "logistic regression, one weight matrix,",
+        "granica decyzyjna =": "decision boundary =",
+        "prosta": "a straight line",
+        "uczenie: reguła delty (błąd × pochodna),": "learning: the delta rule (error × derivative),",
+        "rozwiązuje zadania liniowo separowalne.": "solves linearly separable problems.",
+        "2 warstwy (część 2)": "2 layers (part 2)",
+        "warstwa ukryta + bias,": "hidden layer + bias,",
+        "macierze wag,": "weight matrices,",
+        "nieliniowa": "non-linear",
+        "(np. XOR),": "(e.g. XOR),",
+        "uczenie:": "learning:",
+        "— błąd cofany przez W2,": "— the error pushed back through W2,",
+        "ta sama reguła delty stosowana w obu warstwach.": "the same delta rule applied in both layers.",
+        "druga warstwa daje sieci nieliniowość, a backpropagation to po prostu reguła łańcuchowa: policz błąd na wyjściu, cofnij go przez wagi do warstwy ukrytej i popraw obie warstwy tą samą regułą delty.": "the second layer gives the network non-linearity, and backpropagation is simply the chain rule: compute the error at the output, push it back through the weights to the hidden layer, and correct both layers with the same delta rule."
+      };
+
+      const root = document.body;
+      const originals = new Map();
+
+      function translatableNodes() {
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+          acceptNode(node) {
+            if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+            let p = node.parentNode;
+            while (p && p !== root) {
+              const tag = p.tagName;
+              if (tag === "PRE" || tag === "CODE" || tag === "SCRIPT" || tag === "STYLE") return NodeFilter.FILTER_REJECT;
+              if (p.id === "counter") return NodeFilter.FILTER_REJECT;
+              if (p.classList && p.classList.contains("langsel")) return NodeFilter.FILTER_REJECT;
+              p = p.parentNode;
+            }
+            return NodeFilter.FILTER_ACCEPT;
+          }
+        });
+        const nodes = [];
+        while (walker.nextNode()) nodes.push(walker.currentNode);
+        return nodes;
+      }
+
+      function apply(lang) {
+        translatableNodes().forEach((node) => {
+          if (!originals.has(node)) originals.set(node, node.nodeValue);
+          const orig = originals.get(node);
+          if (lang === "en") {
+            const lead = orig.match(/^\s*/)[0];
+            const trail = orig.match(/\s*$/)[0];
+            const core = orig.slice(lead.length, orig.length - trail.length).replace(/\u00a0/g, " ");
+            const tr = I18N[core];
+            node.nodeValue = (tr !== undefined) ? (lead + tr + trail) : orig;
+          } else {
+            node.nodeValue = orig;
+          }
+        });
+        document.documentElement.lang = lang;
+        document.title = TITLE[lang] || document.title;
+        const pl = document.getElementById("langPl");
+        const en = document.getElementById("langEn");
+        pl.classList.toggle("active", lang === "pl");
+        en.classList.toggle("active", lang === "en");
+        try { localStorage.setItem("presLang", lang); } catch (e) {}
+      }
+
+      document.getElementById("langPl").addEventListener("click", () => apply("pl"));
+      document.getElementById("langEn").addEventListener("click", () => apply("en"));
+
+      let saved = "pl";
+      try { saved = localStorage.getItem("presLang") || "pl"; } catch (e) {}
+      apply(saved);
+    })();
   </script>
 </body>
 </html>
