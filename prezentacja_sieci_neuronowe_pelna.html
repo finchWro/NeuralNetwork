@@ -1,0 +1,1812 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sieci neuronowe - od jednej do dwóch warstw (backpropagation)</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --text: #e8edf7;
+      --muted: #a6b2cc;
+      --accent: #38bdf8;
+      --accent-2: #a78bfa;
+      --good: #34d399;
+      --warn: #fbbf24;
+      --bad: #fb7185;
+      --code: #050816;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; overflow-x: hidden; overflow-y: auto;
+      font-family: "Segoe UI", Arial, sans-serif; color: var(--text);
+      background:
+        radial-gradient(circle at 16% 12%, rgba(56,189,248,0.30), transparent 26%),
+        radial-gradient(circle at 82% 16%, rgba(167,139,250,0.30), transparent 24%),
+        radial-gradient(circle at 50% 92%, rgba(52,211,153,0.18), transparent 30%),
+        var(--bg);
+    }
+    .deck { width: 100vw; min-height: 100vh; display: block; padding: 0; }
+    .slide {
+      display: none; width: 100%; min-height: 100vh;
+      padding: 36px clamp(22px, 5vw, 90px) 96px;
+      border: 0; border-radius: 0; background: transparent; box-shadow: none;
+    }
+    .slide.active { display: flex; flex-direction: column; justify-content: flex-start; animation: show 200ms ease-out; }
+    .slide > * { max-width: 1300px; width: 100%; margin-left: auto; margin-right: auto; }
+    @keyframes show { from { opacity: 0; transform: translateY(10px);} to { opacity: 1; transform: translateY(0);} }
+
+    h1, h2 { margin: 0 0 14px; line-height: 1.08; letter-spacing: -0.03em; }
+    h1 { font-size: clamp(38px, 5vw, 64px); }
+    h2 { font-size: clamp(26px, 3.4vw, 42px); }
+    h3 { margin: 12px 0 6px; color: var(--accent); font-size: clamp(17px, 1.7vw, 21px); }
+    p, li { font-size: clamp(16px, 1.65vw, 21px); line-height: 1.4; }
+    p.lead { max-width: 980px; color: var(--muted); font-size: clamp(20px, 2.2vw, 29px); }
+    ul { padding-left: 1.15em; margin: 6px 0; } li { margin: 5px 0; }
+
+    .tag {
+      display: inline-block; margin-bottom: 10px; padding: 6px 12px; border-radius: 999px;
+      background: rgba(56,189,248,0.16); color: #bae6fd; font-weight: 800;
+      font-size: 13px; text-transform: uppercase; letter-spacing: 0.09em;
+    }
+
+    /* Triada: teoria + kod po lewej, obrazek po prawej */
+    .triad {
+      display: grid; grid-template-columns: 1.02fr 1fr; grid-template-rows: auto auto;
+      gap: 16px; margin-top: 10px;
+    }
+    .triad .theory { grid-column: 1; grid-row: 1; }
+    .triad .code-ref { grid-column: 1; grid-row: 2; }
+    .triad .visual { grid-column: 2; grid-row: 1 / span 2; }
+
+    .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; margin-top: 10px; }
+
+    .card { padding: 16px 18px; border-radius: 16px; background: rgba(5,8,22,0.55); border: 1px solid rgba(255,255,255,0.10); }
+    .badge { display:inline-block; font-size:12px; font-weight:800; letter-spacing:0.06em; text-transform:uppercase; padding:3px 9px; border-radius:999px; margin-bottom:8px; }
+    .badge.t { background: rgba(56,189,248,0.16); color:#bae6fd; }
+    .badge.c { background: rgba(52,211,153,0.16); color:#bbf7d0; }
+
+    .visual {
+      display: grid; place-items: center; padding: 12px; border-radius: 18px;
+      background: radial-gradient(circle at 50% 35%, rgba(167,139,250,0.16), transparent 60%), rgba(2,6,23,0.55);
+      border: 1px solid rgba(148,163,184,0.22);
+    }
+    .visual svg { width: 100%; height: auto; max-height: 460px; }
+    .caption { margin-top: 8px; color: var(--muted); font-size: clamp(13px,1.25vw,16px); text-align: center; }
+
+    .why {
+      margin-top: 12px; padding: 13px 18px; border-radius: 14px; border-left: 6px solid var(--accent-2);
+      background: linear-gradient(90deg, rgba(167,139,250,0.16), rgba(167,139,250,0.04));
+      font-size: clamp(15px,1.5vw,20px);
+    }
+    .why b { color: #d6c8ff; }
+
+    .formula {
+      margin: 10px 0; padding: 12px 18px; border-left: 5px solid var(--accent); border-radius: 12px;
+      background: rgba(56,189,248,0.08); color: #e0f2fe;
+      font-family: Consolas, "Cascadia Code", monospace; font-size: clamp(17px,1.9vw,26px);
+    }
+    pre {
+      margin: 8px 0; padding: 14px 16px; border-radius: 14px; background: var(--code);
+      border: 1px solid rgba(148,163,184,0.2); color: #dbeafe; overflow: auto;
+      font-family: Consolas, "Cascadia Code", monospace; font-size: clamp(12.5px,1.25vw,17px); line-height: 1.5;
+    }
+    code { font-family: Consolas, "Cascadia Code", monospace; color: #bfdbfe; }
+    .good { color: #86efac; } .warn { color: #fde68a; } .bad { color: #fecdd3; }
+
+    /* macierze wag / poprawek */
+    .mtx { border-collapse: collapse; font-family: Consolas, "Cascadia Code", monospace; font-size: clamp(11px, 1.15vw, 15px); margin-top: 8px; }
+    .mtx caption { caption-side: top; color: var(--muted); font-size: 13px; margin-bottom: 4px; text-align: left; }
+    .mtx th, .mtx td { border: 1px solid rgba(148,163,184,0.22); padding: 5px 10px; text-align: right; }
+    .mtx th { color: #bae6fd; background: rgba(56,189,248,0.10); }
+    .mtx td.rl { color: #bbf7d0; text-align: left; background: rgba(52,211,153,0.06); }
+    .mtx td.up { color: #86efac; } .mtx td.dn { color: #fda4af; }
+    .mtx td.hot { font-weight: 700; background: rgba(251,191,36,0.12); }
+    .mtx td .o { color: #94a3b8; }
+    .mtx td.up b, .mtx td.dn b { font-weight: 700; }
+    .kvbox { font-family: Consolas, "Cascadia Code", monospace; font-size: clamp(13px, 1.35vw, 18px); line-height: 1.85; color: #e0f2fe; }
+    .kvbox .lab { color: #fde68a; }
+    .stepnum { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: #2563eb; color: #fff; font-weight: 800; font-size: 14px; margin-right: 9px; vertical-align: middle; }
+    .step-card { margin-top: 16px; }
+    .toc { list-style: decimal; padding-left: 1.4em; margin: 6px 0; }
+    .toc li { margin: 9px 0; font-size: clamp(15px, 1.6vw, 20px); }
+    .toc a { color: #bfdbfe; text-decoration: none; cursor: pointer; border-bottom: 1px dashed transparent; }
+    .toc a:hover { color: #fff; border-bottom-color: #93c5fd; }
+
+    .controls {
+      position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
+      display: flex; align-items: center; gap: 12px; padding: 9px 14px; border-radius: 999px;
+      background: rgba(2,6,23,0.8); border: 1px solid rgba(255,255,255,0.12); backdrop-filter: blur(10px);
+    }
+    button { border: 0; border-radius: 999px; padding: 9px 16px; color: #fff; background: #2563eb; font-weight: 800; cursor: pointer; }
+    button:hover { background: #1d4ed8; }
+    .counter { min-width: 92px; text-align: center; color: var(--muted); font-weight: 800; }
+    .progress { position: fixed; left: 0; bottom: 0; height: 5px; width: 100%; background: rgba(255,255,255,0.10); }
+    .bar { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width 160ms ease; }
+
+    @media (max-width: 900px) { .triad, .cols { grid-template-columns: 1fr; } .triad .visual { grid-column: 1; grid-row: auto; } }
+    @media print {
+      body { overflow: visible; background: #fff; color: #000; }
+      .deck { display: block; height: auto; padding: 0; }
+      .slide { display: block; width: 100%; height: auto; min-height: 100vh; page-break-after: always; background: #fff; color: #000; border: 0; box-shadow: none; }
+      .controls, .progress { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="deck">
+
+    <!-- 1. TYTUŁ -->
+    <section class="slide active">
+      <span class="tag">Python / NumPy</span>
+      <h1>Sieci neuronowe<br>od jednej do dwóch warstw</h1>
+      <p class="lead">Od regresji logistycznej (1 warstwa) do uczenia wstecznej propagacji błędu (2 warstwy, XOR).</p>
+      <p>Każdy slajd ma ten sam rytm: <b style="color:#bae6fd">teoria</b> → <b style="color:#c4b5fd">obrazek</b> → <b style="color:#bbf7d0">odniesienie do kodu</b>. Część 1: <code>sieci_jednowarstwowe_w_pythonie_stud.py</code>, Część 2: <code>sieci_dwuwarstwowe_w_pythonie_stud.py</code>.</p>
+      <p class="author-line" style="margin-top:28px;font-size:1.05rem;color:#e2e8f0">Autor: <b>Błażej Zięba</b><br><span style="color:#94a3b8">15.06.2026</span></p>
+    </section>
+
+    <!-- 1b. SPIS TREŚCI -->
+    <section class="slide">
+      <span class="tag">Spis treści</span>
+      <h2>Co Cię czeka</h2>
+      <div class="cols">
+        <div class="card">
+          <span class="badge t">Część 1 · sieć jednowarstwowa</span>
+          <ol class="toc">
+            <li><a data-target="toc-neuron">Neuron biologiczny — inspiracja</a></li>
+            <li><a data-target="toc-regresja">Od regresji liniowej do sigmoidy</a></li>
+            <li><a data-target="toc-arch1">Architektura i inicjalizacja wag</a></li>
+            <li><a data-target="toc-run1">Forward pass (run1)</a></li>
+            <li><a data-target="toc-blad">Błąd, koszt i pochodne</a></li>
+            <li><a data-target="toc-delta">Reguła delty — jak zmieniają się wagi</a></li>
+            <li><a data-target="toc-krok1">Pełny krok uczenia (liczbowo)</a></li>
+            <li><a data-target="toc-petla">Pętla, MSE, wyniki, generalizacja</a></li>
+          </ol>
+        </div>
+        <div class="card">
+          <span class="badge c">Część 2 · sieć dwuwarstwowa</span>
+          <ol class="toc" start="9">
+            <li><a data-target="toc-xor">Problem XOR i warstwa ukryta</a></li>
+            <li><a data-target="toc-bias">Bias — ruchomy próg neuronu</a></li>
+            <li><a data-target="toc-run2">Forward pass przez 2 warstwy (run2)</a></li>
+            <li><a data-target="toc-backprop">Backpropagation — idea i wzory</a></li>
+            <li><a data-target="toc-krok2">Pełny krok backpropagation (liczbowo)</a></li>
+            <li><a data-target="toc-xorwynik">XOR: wynik i podsumowanie</a></li>
+          </ol>
+        </div>
+      </div>
+      <p style="color:var(--muted); text-align:center; margin-top:14px">Kliknij punkt, aby przejść do sekcji. Nawigacja również strzałkami ← → lub spacją.</p>
+    </section>
+
+    <!-- 2. PRZEGLĄD -->
+    <section class="slide">
+      <h2>Co robi ten program?</h2>
+      <div class="triad">
+        <div class="card theory">
+          <span class="badge t">Teoria</span>
+          <p>Program buduje najprostszą sieć neuronową i uczy ją rozpoznawać zwierzęta z 5 cech. Całość to trzy funkcje:</p>
+          <ul>
+            <li><code>init1</code> - tworzy wagi (pamięć sieci),</li>
+            <li><code>run1</code> - liczy odpowiedź (forward pass),</li>
+            <li><code>train1</code> - poprawia wagi (uczenie).</li>
+          </ul>
+        </div>
+        <div class="visual">
+          <svg viewBox="0 0 480 350" role="img" aria-label="Trzy etapy programu">
+            <defs><marker id="aMain" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#93c5fd"/></marker></defs>
+            <rect x="140" y="22" width="200" height="68" rx="16" fill="#0f172a" stroke="#38bdf8"/>
+            <text x="240" y="52" text-anchor="middle" fill="#e0f2fe" font-size="21" font-weight="700">init1</text>
+            <text x="240" y="76" text-anchor="middle" fill="#bae6fd" font-size="15">losowe wagi</text>
+            <rect x="140" y="140" width="200" height="68" rx="16" fill="#111827" stroke="#a78bfa"/>
+            <text x="240" y="170" text-anchor="middle" fill="#ede9fe" font-size="21" font-weight="700">run1</text>
+            <text x="240" y="194" text-anchor="middle" fill="#ddd6fe" font-size="15">odpowiedź</text>
+            <rect x="140" y="258" width="200" height="68" rx="16" fill="#0f172a" stroke="#34d399"/>
+            <text x="240" y="288" text-anchor="middle" fill="#bbf7d0" font-size="21" font-weight="700">train1</text>
+            <text x="240" y="312" text-anchor="middle" fill="#bbf7d0" font-size="15">lepsze wagi</text>
+            <line x1="240" y1="90" x2="240" y2="138" stroke="#93c5fd" stroke-width="4" marker-end="url(#aMain)"/>
+            <line x1="240" y1="208" x2="240" y2="256" stroke="#93c5fd" stroke-width="4" marker-end="url(#aMain)"/>
+            <path d="M140 292 C60 250 60 110 138 72" fill="none" stroke="#34d399" stroke-width="4" stroke-dasharray="8 7" marker-end="url(#aMain)"/>
+            <text x="48" y="185" text-anchor="middle" fill="#86efac" font-size="13" transform="rotate(-90 48 185)">pętla uczenia</text>
+          </svg>
+          <div class="caption">Obrazek: dane płyną w dół, a uczenie zawraca, by poprawić wagi.</div>
+        </div>
+        <div class="card code-ref">
+          <span class="badge c">Kod</span>
+          <pre><code>weights_before = init1(num_inputs, num_outputs)
+output = run1(weights_before, training_inputs)
+weights_after = train1(weights_before, training_inputs, targets, num_epoch)</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. NEURON BIOLOGICZNY -->
+    <section class="slide" id="toc-neuron">
+      <span class="tag">Wstęp teoretyczny</span>
+      <h2>Skąd pomysł? Neuron biologiczny</h2>
+      <div class="cols">
+        <div class="visual">
+          <svg viewBox="0 0 480 300" role="img" aria-label="Neuron biologiczny">
+            <circle cx="180" cy="150" r="58" fill="#1e293b" stroke="#a78bfa" stroke-width="3"/>
+            <text x="180" y="156" text-anchor="middle" fill="#ede9fe" font-size="15">soma</text>
+            <g stroke="#38bdf8" stroke-width="4" fill="none">
+              <path d="M122 112 C82 84 64 90 42 74"/>
+              <path d="M124 145 C82 140 64 145 40 140"/>
+              <path d="M124 182 C82 198 64 204 42 214"/>
+            </g>
+            <text x="44" y="62" fill="#bae6fd" font-size="13">dendryty (wejścia)</text>
+            <line x1="238" y1="150" x2="372" y2="150" stroke="#34d399" stroke-width="6"/>
+            <text x="300" y="138" text-anchor="middle" fill="#86efac" font-size="13">akson (wyjście)</text>
+            <circle cx="384" cy="150" r="11" fill="#34d399"/>
+            <text x="408" y="154" fill="#bbf7d0" font-size="12">synapsa</text>
+          </svg>
+          <div class="caption">Obrazek: dendryty zbierają sygnały, soma sumuje, akson wysyła wynik.</div>
+        </div>
+        <div class="card">
+          <span class="badge t">Teoria</span>
+          <h3>Odpowiedniki w kodzie</h3>
+          <ul>
+            <li>dendryty → wejścia <code>input_vector</code>,</li>
+            <li>siła synaps → <code>weights</code>,</li>
+            <li>soma → suma ważona <code>net_input</code>,</li>
+            <li>próg → funkcja aktywacji (sigmoida),</li>
+            <li>akson → wyjście <code>output</code>.</li>
+          </ul>
+          <div class="why"><b>Dlaczego ta analogia?</b> Neuron „głosuje”: ważna cecha ma dużą wagę i mocniej pobudza wynik, jak silna synapsa.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. REGRESJA LINIOWA -->
+    <section class="slide" id="toc-regresja">
+      <span class="tag">Dlaczego suma ważona?</span>
+      <h2>Krok 1: regresja liniowa</h2>
+      <div class="triad">
+        <div class="card theory">
+          <span class="badge t">Teoria</span>
+          <p>Neuron zaczyna jak regresja liniowa: mnoży każdą cechę przez wagę i sumuje.</p>
+          <div class="formula">net_input = w₁x₁ + w₂x₂ + ... + wₙxₙ</div>
+          <p>Waga = jak bardzo cecha przemawia za klasą (dodatnia = za, ujemna = przeciw).</p>
+        </div>
+        <div class="visual">
+          <svg viewBox="0 0 480 300" role="img" aria-label="Regresja liniowa">
+            <line x1="55" y1="255" x2="450" y2="255" stroke="#94a3b8" stroke-width="2"/>
+            <line x1="55" y1="35" x2="55" y2="255" stroke="#94a3b8" stroke-width="2"/>
+            <text x="438" y="278" fill="#cbd5e1" font-size="13">cecha x</text>
+            <text x="14" y="46" fill="#cbd5e1" font-size="11">net_input</text>
+            <circle cx="100" cy="225" r="6" fill="#38bdf8"/><circle cx="160" cy="200" r="6" fill="#38bdf8"/>
+            <circle cx="220" cy="185" r="6" fill="#38bdf8"/><circle cx="285" cy="140" r="6" fill="#38bdf8"/>
+            <circle cx="345" cy="112" r="6" fill="#38bdf8"/><circle cx="410" cy="78" r="6" fill="#38bdf8"/>
+            <line x1="75" y1="240" x2="435" y2="68" stroke="#a78bfa" stroke-width="4"/>
+            <text x="245" y="235" fill="#ddd6fe" font-size="14">net_input rośnie bez ograniczeń</text>
+          </svg>
+          <div class="caption">Obrazek: suma ważona to prosta dopasowana do cech.</div>
+        </div>
+        <div class="card code-ref">
+          <span class="badge c">Kod</span>
+          <pre><code>net_input = weights.T @ input_vector</code></pre>
+          <div class="why"><b>Dlaczego liniowo?</b> To najprostszy sposób złączenia wielu cech w jedną liczbę. Problem: wynik jest nieograniczony (−∞, +∞).</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. POTRZEBA PRAWDOPODOBIEŃSTWA -->
+    <section class="slide">
+      <span class="tag">Dlaczego to za mało?</span>
+      <h2>Krok 2: surowa liczba nie wystarcza</h2>
+      <div class="cols">
+        <div class="visual">
+          <svg viewBox="0 0 480 280" role="img" aria-label="Problem nieograniczonego wyjścia">
+            <line x1="40" y1="150" x2="440" y2="150" stroke="#94a3b8" stroke-width="2"/>
+            <text x="240" y="140" text-anchor="middle" fill="#cbd5e1" font-size="13">net_input (pobudzenie)</text>
+            <text x="60" y="180" fill="#fb7185" font-size="16">−127</text>
+            <text x="232" y="180" fill="#cbd5e1" font-size="16">0</text>
+            <text x="392" y="180" fill="#fb7185" font-size="16">+850</text>
+            <text x="240" y="70" text-anchor="middle" fill="#fecdd3" font-size="17">Czy „850” znaczy ssak?</text>
+            <text x="240" y="232" text-anchor="middle" fill="#fde68a" font-size="17">Chcemy skali 0...1</text>
+          </svg>
+          <div class="caption">Obrazek: dowolnych liczb nie da się czytać jak pewności.</div>
+        </div>
+        <div class="card">
+          <span class="badge t">Teoria</span>
+          <p>Do klasyfikacji chcemy wartości czytanej jak <b>pewność</b>: blisko 0 = „raczej nie”, blisko 1 = „raczej tak”.</p>
+          <div class="why"><b>Dlaczego?</b> Chcemy porównać 3 klasy i wskazać najbardziej prawdopodobną. Rozwiązanie: ściśnij <code>net_input</code> do (0, 1) <b>funkcją logistyczną (sigmoidą)</b>.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. SIGMOIDA -->
+    <section class="slide">
+      <span class="tag">Funkcja logistyczna</span>
+      <h2>Krok 3: sigmoida zamienia pobudzenie w pewność</h2>
+      <div class="triad">
+        <div class="card theory">
+          <span class="badge t">Teoria</span>
+          <div class="formula">output = 1 / (1 + e<sup>−β·net_input</sup>)</div>
+          <ul>
+            <li>wejście: dowolna liczba (−∞, +∞),</li>
+            <li>wyjście: zawsze (0, 1),</li>
+            <li>σ(0) = 0.5 - punkt niepewności.</li>
+          </ul>
+        </div>
+        <div class="visual">
+          <svg viewBox="0 0 480 310" role="img" aria-label="Wykres sigmoidy z wartościami na osiach">
+            <!-- poziome linie pomocnicze (output = 0.25, 0.5, 0.75, 1) -->
+            <g stroke="#1f2937" stroke-width="1" stroke-dasharray="5 5">
+              <line x1="54" y1="60"  x2="450" y2="60"/>
+              <line x1="54" y1="107" x2="450" y2="107"/>
+              <line x1="54" y1="155" x2="450" y2="155"/>
+              <line x1="54" y1="202" x2="450" y2="202"/>
+            </g>
+            <!-- osie -->
+            <line x1="54" y1="250" x2="450" y2="250" stroke="#94a3b8" stroke-width="2"/>
+            <line x1="250" y1="40" x2="250" y2="258" stroke="#94a3b8" stroke-width="2"/>
+
+            <!-- wartości na osi Y (output) -->
+            <g fill="#cbd5e1" font-size="12" text-anchor="end">
+              <text x="46" y="64">1.0</text>
+              <text x="46" y="111">0.75</text>
+              <text x="46" y="159">0.5</text>
+              <text x="46" y="206">0.25</text>
+              <text x="46" y="254">0.0</text>
+            </g>
+            <!-- wartości na osi X (net_input), podziałki -->
+            <g stroke="#94a3b8" stroke-width="1.5">
+              <line x1="54"  y1="246" x2="54"  y2="254"/>
+              <line x1="152" y1="246" x2="152" y2="254"/>
+              <line x1="348" y1="246" x2="348" y2="254"/>
+              <line x1="446" y1="246" x2="446" y2="254"/>
+            </g>
+            <g fill="#cbd5e1" font-size="12" text-anchor="middle">
+              <text x="54"  y="268">−2</text>
+              <text x="152" y="268">−1</text>
+              <text x="242" y="268">0</text>
+              <text x="348" y="268">1</text>
+              <text x="446" y="268">2</text>
+            </g>
+
+            <!-- krzywa sigmoidy dla β = 5: output = 1/(1+e^(−5·net_input)) -->
+            <path d="M54 250 L152 249 L191 241 L211 227 L230 199 L250 155 L270 111 L289 83 L309 69 L348 61 L446 60"
+                  fill="none" stroke="#34d399" stroke-width="5"/>
+
+            <!-- punkt środkowy σ(0) = 0.5 -->
+            <circle cx="250" cy="155" r="6" fill="#fbbf24"/>
+            <text x="258" y="148" fill="#fde68a" font-size="12">σ(0) = 0.5</text>
+
+            <!-- przykładowy punkt: net_input = 0.4 → output ≈ 0.88 -->
+            <line x1="289" y1="250" x2="289" y2="83" stroke="#a78bfa" stroke-width="1" stroke-dasharray="4 4"/>
+            <line x1="250" y1="83"  x2="289" y2="83" stroke="#a78bfa" stroke-width="1" stroke-dasharray="4 4"/>
+            <circle cx="289" cy="83" r="6" fill="#a78bfa"/>
+            <text x="296" y="80" fill="#ddd6fe" font-size="12">0.4 → 0.88</text>
+
+            <!-- opisy osi -->
+            <text x="450" y="288" text-anchor="end" fill="#94a3b8" font-size="12">net_input (oś X, β = 5)</text>
+            <text x="16" y="150" text-anchor="middle" fill="#94a3b8" font-size="12" transform="rotate(-90 16 150)">output (oś Y)</text>
+          </svg>
+          <div class="caption">Obrazek: sigmoida dla β = 5 — oś X to <code>net_input</code>, oś Y to <code>output</code> (0–1). Już przy net_input ≈ 0.4 wyjście rośnie do ~0.88.</div>
+        </div>
+        <div class="card code-ref">
+          <span class="badge c">Kod</span>
+          <pre><code>output = 1 / (1 + np.exp(-beta * net_input))</code></pre>
+          <div class="why"><b>Dlaczego sigmoida?</b> Jest gładka (ma pochodną - przyda się przy uczeniu) i daje wynik czytany jak prawdopodobieństwo klasy.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7. BETA -->
+    <section class="slide">
+      <span class="tag">Dlaczego beta = 5?</span>
+      <h2>Parametr nachylenia β</h2>
+      <div class="triad">
+        <div class="card theory">
+          <span class="badge t">Teoria</span>
+          <p>β steruje stromością przejścia 0 → 1:</p>
+          <ul>
+            <li>małe β → miękkie, niepewne decyzje,</li>
+            <li>duże β → ostre, niemal progowe decyzje.</li>
+          </ul>
+        </div>
+        <div class="visual">
+          <svg viewBox="0 0 480 300" role="img" aria-label="Wpływ bety">
+            <line x1="55" y1="250" x2="450" y2="250" stroke="#94a3b8" stroke-width="2"/>
+            <line x1="250" y1="35" x2="250" y2="262" stroke="#94a3b8" stroke-width="2"/>
+            <path d="M55 230 C150 216 210 195 250 155 C290 115 350 82 450 74" fill="none" stroke="#38bdf8" stroke-width="4"/>
+            <path d="M55 247 C205 244 238 226 250 155 C262 84 295 64 450 60" fill="none" stroke="#a78bfa" stroke-width="4"/>
+            <path d="M55 248 C238 248 249 205 250 155 C251 105 262 63 450 60" fill="none" stroke="#fb7185" stroke-width="4"/>
+            <text x="330" y="232" fill="#bae6fd" font-size="13">małe β</text>
+            <text x="320" y="110" fill="#ddd6fe" font-size="13">średnie β</text>
+            <text x="290" y="56" fill="#fecdd3" font-size="13">duże β</text>
+          </svg>
+          <div class="caption">Obrazek: większe β = ostrzejsza granica decyzyjna.</div>
+        </div>
+        <div class="card code-ref">
+          <span class="badge c">Kod</span>
+          <pre><code>beta = 5.0
+output = 1 / (1 + np.exp(-beta * net_input))</code></pre>
+          <div class="why"><b>Dlaczego 5?</b> Kompromis: granica jest wyraźna, a funkcja wciąż gładka, więc uczenie pozostaje stabilne.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8. ARCHITEKTURA -->
+    <section class="slide" id="toc-arch1">
+      <span class="tag">Architektura w kodzie</span>
+      <h2>5 cech wejściowych → 3 klasy</h2>
+      <div class="triad">
+        <div class="card theory">
+          <span class="badge t">Teoria</span>
+          <p>Każda cecha łączy się z każdą klasą. Macierz <code>weights</code> ma kształt <code>(5, 3)</code> = 15 wag.</p>
+          <p>Każda kolumna to osobny neuron-klasa z własnymi 5 wagami.</p>
+        </div>
+        <div class="visual">
+          <svg viewBox="0 0 500 350" role="img" aria-label="Architektura 5 na 3">
+            <g font-size="13" fill="#bae6fd" text-anchor="end">
+              <text x="116" y="52">nogi</text><text x="116" y="112">woda</text><text x="116" y="172">latanie</text><text x="116" y="232">pióra</text><text x="116" y="292">jajorodność</text>
+            </g>
+            <g fill="#0f172a" stroke="#38bdf8" stroke-width="2">
+              <circle cx="146" cy="47" r="15"/><circle cx="146" cy="107" r="15"/><circle cx="146" cy="167" r="15"/><circle cx="146" cy="227" r="15"/><circle cx="146" cy="287" r="15"/>
+            </g>
+            <g fill="#111827" stroke="#34d399" stroke-width="2">
+              <circle cx="400" cy="107" r="21"/><circle cx="400" cy="177" r="21"/><circle cx="400" cy="247" r="21"/>
+            </g>
+            <g font-size="13" fill="#bbf7d0"><text x="430" y="112">ssak</text><text x="430" y="182">ptak</text><text x="430" y="252">ryba</text></g>
+            <g stroke="#475569" stroke-width="1">
+              <line x1="161" y1="47" x2="380" y2="107"/><line x1="161" y1="107" x2="380" y2="107"/><line x1="161" y1="167" x2="380" y2="107"/><line x1="161" y1="227" x2="380" y2="107"/><line x1="161" y1="287" x2="380" y2="107"/>
+              <line x1="161" y1="47" x2="380" y2="177"/><line x1="161" y1="107" x2="380" y2="177"/><line x1="161" y1="167" x2="380" y2="177"/><line x1="161" y1="227" x2="380" y2="177"/><line x1="161" y1="287" x2="380" y2="177"/>
+              <line x1="161" y1="47" x2="380" y2="247"/><line x1="161" y1="107" x2="380" y2="247"/><line x1="161" y1="167" x2="380" y2="247"/><line x1="161" y1="227" x2="380" y2="247"/><line x1="161" y1="287" x2="380" y2="247"/>
+            </g>
+            <text x="146" y="328" text-anchor="middle" fill="#e0f2fe" font-size="14">input_vector</text>
+            <text x="400" y="312" text-anchor="middle" fill="#e0f2fe" font-size="14">output</text>
+          </svg>
+          <div class="caption">Obrazek: 5 wejść × 3 klasy = 15 połączeń (wag).</div>
+        </div>
+        <div class="card code-ref">
+          <span class="badge c">Kod</span>
+          <pre><code>num_inputs = training_inputs.shape[0]   # 5
+num_outputs = targets.shape[0]          # 3
+weights_before = init1(num_inputs, num_outputs)</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8b. CAŁA SIEĆ NA KONKRETNYM PRZYKŁADZIE -->
+    <section class="slide">
+      <span class="tag">Pełny obraz · przykład „człowiek”</span>
+      <h2>Cała sieć w jednym obrazku</h2>
+      <div class="visual" style="margin-top:6px;">
+        <svg viewBox="0 0 1000 830" style="max-height:min(640px,66vh)" role="img" aria-label="Cała sieć neuronowa na przykładzie człowiek">
+          <defs>
+            <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+              <feGaussianBlur stdDeviation="5" result="b"/>
+              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+
+          <!-- 15 połączeń (wagi po treningu): kolor = znak, grubość = |waga| -->
+          <g fill="none" opacity="0.75" stroke-linecap="round">
+            <!-- do neuronu ssak (y=130) -->
+            <line x1="180" y1="80"  x2="760" y2="130" stroke="#34d399" stroke-width="4.4"/>
+            <line x1="180" y1="170" x2="760" y2="130" stroke="#fb7185" stroke-width="3.2"/>
+            <line x1="180" y1="260" x2="760" y2="130" stroke="#fb7185" stroke-width="3.5"/>
+            <line x1="180" y1="350" x2="760" y2="130" stroke="#fb7185" stroke-width="3.8"/>
+            <line x1="180" y1="440" x2="760" y2="130" stroke="#fb7185" stroke-width="7.4"/>
+            <!-- do neuronu ptak (y=270) -->
+            <line x1="180" y1="80"  x2="760" y2="270" stroke="#fb7185" stroke-width="3.8"/>
+            <line x1="180" y1="170" x2="760" y2="270" stroke="#fb7185" stroke-width="6.2"/>
+            <line x1="180" y1="260" x2="760" y2="270" stroke="#34d399" stroke-width="2.4"/>
+            <line x1="180" y1="350" x2="760" y2="270" stroke="#34d399" stroke-width="7.8"/>
+            <line x1="180" y1="440" x2="760" y2="270" stroke="#34d399" stroke-width="2.6"/>
+            <!-- do neuronu ryba (y=410) -->
+            <line x1="180" y1="80"  x2="760" y2="410" stroke="#fb7185" stroke-width="7.8"/>
+            <line x1="180" y1="170" x2="760" y2="410" stroke="#34d399" stroke-width="4.2"/>
+            <line x1="180" y1="260" x2="760" y2="410" stroke="#fb7185" stroke-width="2.0"/>
+            <line x1="180" y1="350" x2="760" y2="410" stroke="#34d399" stroke-width="2.1"/>
+            <line x1="180" y1="440" x2="760" y2="410" stroke="#34d399" stroke-width="2.0"/>
+          </g>
+
+          <!-- callout: pełne wzory ogólne (forward pass) -->
+          <g>
+            <rect x="278" y="6" width="444" height="66" rx="12" fill="#050816" stroke="#a78bfa" stroke-width="1.5"/>
+            <text x="500" y="31" text-anchor="middle" fill="#ddd6fe" font-size="14" font-family="Consolas, monospace">net_input = wᵀ·x = Σᵢ wᵢ·xᵢ</text>
+            <text x="500" y="55" text-anchor="middle" fill="#bbf7d0" font-size="13" font-family="Consolas, monospace">output = σ(β·net_input) = 1 / (1 + e^(−β·net_input)),  β = 5</text>
+          </g>
+
+          <!-- warstwa wejściowa: 5 cech z wartościami przykładu „człowiek” -->
+          <g font-size="14" fill="#bae6fd" text-anchor="end">
+            <text x="146" y="85">nogi</text>
+            <text x="146" y="175">woda</text>
+            <text x="146" y="265">latanie</text>
+            <text x="146" y="355">pióra</text>
+            <text x="146" y="445">jajorodność</text>
+          </g>
+          <g stroke="#38bdf8" stroke-width="2" fill="#0f172a">
+            <circle cx="180" cy="80"  r="24"/>
+            <circle cx="180" cy="170" r="24"/>
+            <circle cx="180" cy="260" r="24"/>
+            <circle cx="180" cy="350" r="24"/>
+            <circle cx="180" cy="440" r="24"/>
+          </g>
+          <g font-size="16" font-weight="700" fill="#e8edf7" text-anchor="middle">
+            <text x="180" y="85">2</text>
+            <text x="180" y="175">−5</text>
+            <text x="180" y="265">−5</text>
+            <text x="180" y="355">−5</text>
+            <text x="180" y="445">−5</text>
+          </g>
+
+          <!-- warstwa wyjściowa: 3 neurony-klasy z wynikiem sigmoidy -->
+          <circle cx="760" cy="130" r="42" fill="#0f172a" stroke="#fbbf24" stroke-width="4" filter="url(#glow)"/>
+          <circle cx="760" cy="270" r="42" fill="#0f172a" stroke="#34d399" stroke-width="3"/>
+          <circle cx="760" cy="410" r="42" fill="#0f172a" stroke="#34d399" stroke-width="3"/>
+          <g font-size="20" font-weight="700" fill="#e8edf7" text-anchor="middle">
+            <text x="760" y="137">1.00</text>
+            <text x="760" y="277">0.00</text>
+            <text x="760" y="417">0.00</text>
+          </g>
+          <g font-size="11" fill="#94a3b8" text-anchor="middle">
+            <text x="760" y="118">σ neuron</text>
+            <text x="760" y="258">σ neuron</text>
+            <text x="760" y="398">σ neuron</text>
+          </g>
+          <g font-size="17" font-weight="700" text-anchor="start">
+            <text x="816" y="124" fill="#fde68a">ssak</text>
+            <text x="816" y="276" fill="#bbf7d0">ptak</text>
+            <text x="816" y="416" fill="#bbf7d0">ryba</text>
+          </g>
+          <text x="816" y="146" fill="#fbbf24" font-size="13" font-weight="700">← DECYZJA</text>
+
+          <!-- etykiety warstw -->
+          <text x="180" y="500" text-anchor="middle" fill="#cbd5e1" font-size="13">warstwa wejściowa · 5 cech</text>
+          <text x="760" y="500" text-anchor="middle" fill="#cbd5e1" font-size="13">warstwa wyjściowa · 3 klasy</text>
+          <text x="470" y="492" text-anchor="middle" fill="#94a3b8" font-size="12">15 wag (połączeń)</text>
+
+          <!-- legenda -->
+          <g font-size="12" fill="#cbd5e1">
+            <line x1="300" y1="525" x2="332" y2="525" stroke="#34d399" stroke-width="3"/>
+            <text x="338" y="529">waga + (za klasą)</text>
+            <line x1="500" y1="525" x2="532" y2="525" stroke="#fb7185" stroke-width="3"/>
+            <text x="538" y="529">waga − (przeciw)</text>
+            <text x="690" y="529" fill="#94a3b8">grubość = |waga|</text>
+          </g>
+
+          <!-- PEŁNE OBLICZENIA dla każdego neuronu (wagi po treningu, x = [2,−5,−5,−5,−5], β = 5) -->
+          <line x1="20" y1="552" x2="980" y2="552" stroke="rgba(148,163,184,0.35)" stroke-width="1"/>
+          <text x="20" y="575" fill="#e0f2fe" font-size="15" font-weight="700">Pełne obliczenia (wagi po treningu, x = [2, −5, −5, −5, −5], β = 5)</text>
+
+          <!-- neuron ssak -->
+          <rect x="20" y="586" width="960" height="72" rx="10" fill="#0b1020" stroke="#fbbf24" stroke-width="1.5"/>
+          <g font-family="Consolas, monospace" font-size="13">
+            <text x="36" y="608" fill="#fde68a"><tspan font-weight="700">ssak: </tspan>net_input = (0.176)(2) + (−0.104)(−5) + (−0.115)(−5) + (−0.145)(−5) + (−0.342)(−5)</text>
+            <text x="100" y="628" fill="#cbd5e1">= 0.353 + 0.518 + 0.574 + 0.726 + 1.708  =  3.878</text>
+            <text x="100" y="648" fill="#bbf7d0">output = σ(5 × 3.878) = 1 / (1 + e^(−19.39)) ≈ 1.0000   ← MAX → decyzja: ssak</text>
+          </g>
+
+          <!-- neuron ptak -->
+          <rect x="20" y="666" width="960" height="72" rx="10" fill="#0b1020" stroke="#34d399" stroke-width="1.2"/>
+          <g font-family="Consolas, monospace" font-size="13">
+            <text x="36" y="688" fill="#bbf7d0"><tspan font-weight="700">ptak: </tspan>net_input = (−0.134)(2) + (−0.272)(−5) + (0.037)(−5) + (0.350)(−5) + (0.065)(−5)</text>
+            <text x="100" y="708" fill="#cbd5e1">= −0.269 + 1.362 − 0.185 − 1.749 − 0.327  =  −1.168</text>
+            <text x="100" y="728" fill="#bbf7d0">output = σ(5 × −1.168) = 1 / (1 + e^(5.838)) ≈ 0.0029</text>
+          </g>
+
+          <!-- neuron ryba -->
+          <rect x="20" y="746" width="960" height="72" rx="10" fill="#0b1020" stroke="#34d399" stroke-width="1.2"/>
+          <g font-family="Consolas, monospace" font-size="13">
+            <text x="36" y="768" fill="#bbf7d0"><tspan font-weight="700">ryba: </tspan>net_input = (−0.359)(2) + (0.159)(−5) + (−0.007)(−5) + (0.021)(−5) + (0.008)(−5)</text>
+            <text x="100" y="788" fill="#cbd5e1">= −0.717 − 0.797 + 0.037 − 0.105 − 0.040  =  −1.622</text>
+            <text x="100" y="808" fill="#bbf7d0">output = σ(5 × −1.622) = 1 / (1 + e^(8.11)) ≈ 0.0003</text>
+          </g>
+        </svg>
+        <div class="caption">Obrazek: przykład „człowiek” = [2, −5, −5, −5, −5] przepływa przez całą sieć — z pełnymi wzorami i obliczeniami dla każdego neuronu. Tylko „ssak” zbiera silne dodatnie pobudzenie i wygrywa.</div>
+      </div>
+      <div class="cols" style="margin-top:14px;">
+        <div class="card theory">
+          <span class="badge t">Teoria</span>
+          <p>To ta sama sieć 5→3, ale na żywym przykładzie. Pięć cech (lewa) łączy się z trzema neuronami-klasami (prawa) przez 15 wag. Każdy neuron liczy własną sumę ważoną <code>net_input</code>, ściska ją sigmoidą i zwraca pewność w (0, 1). Najwyższe wyjście wygrywa.</p>
+          <div class="why"><b>Dlaczego ssak?</b> Cechy „nie-ptasie/nie-rybie” (woda, latanie, pióra, jajorodność = −5) trafiają na ujemne wagi neuronów ptak/ryba, a na dodatnie wagi neuronu ssak → tylko on dostaje duże pobudzenie ≈ 3.88 → σ ≈ 1.00.</p>
+        </div>
+        <div class="card code-ref">
+          <span class="badge c">Kod</span>
+          <pre><code>human = np.array([2, -5, -5, -5, -5])
+output_human = run1(weights_after, human)
+
+# output_human ≈
+# [[1.0000],   # ssak  ← wygrywa
+#  [0.0029],   # ptak
+#  [0.0003]]   # ryba</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- 9. INIT1 -->
+    <section class="slide">
+      <span class="tag">init1 · dlaczego małe i losowe?</span>
+      <h2>Inicjalizacja wag</h2>
+      <div class="triad">
+        <div class="card theory">
+          <span class="badge t">Teoria</span>
+          <p>Wagi startują jako małe liczby losowe z zakresu [−0.1, 0.1).</p>
+          <div class="why"><b>Dlaczego małe?</b> Duże wagi wpychają sigmoidę w skrajności, gdzie jej pochodna ≈ 0 i sieć przestaje się uczyć.</div>
+          <div class="why"><b>Dlaczego losowe?</b> Równe wagi = identyczne neurony, które nigdy się nie zróżnicują.</div>
+        </div>
+        <div class="visual">
+          <svg viewBox="0 0 480 290" role="img" aria-label="Skalowanie wag">
+            <rect x="50" y="80" width="380" height="34" rx="8" fill="#0f172a" stroke="#38bdf8"/>
+            <text x="240" y="68" text-anchor="middle" fill="#bae6fd" font-size="13">rand(): [0, 1)</text>
+            <text x="58" y="103" fill="#e0f2fe" font-size="13">0</text><text x="410" y="103" fill="#e0f2fe" font-size="13">1</text>
+            <text x="240" y="150" text-anchor="middle" fill="#a78bfa" font-size="20">× 0.2 − 0.1</text>
+            <rect x="170" y="185" width="150" height="34" rx="8" fill="#111827" stroke="#34d399"/>
+            <text x="245" y="174" text-anchor="middle" fill="#bbf7d0" font-size="13">[−0.1, 0.1)</text>
+            <text x="140" y="208" fill="#fecdd3" font-size="13">−0.1</text><text x="325" y="208" fill="#fecdd3" font-size="13">0.1</text>
+            <text x="240" y="262" text-anchor="middle" fill="#86efac" font-size="14">bezpieczny start blisko zera</text>
+          </svg>
+          <div class="caption">Obrazek: zakres [0,1) jest ściskany i centrowany wokół zera.</div>
+        </div>
+        <div class="card code-ref">
+          <span class="badge c">Kod</span>
+          <pre><code>np.random.seed(seed)
+matrix = np.random.rand(num_inputs, num_neurons)
+scaled_matrix = matrix * 0.2 - 0.1
+return scaled_matrix</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- 10. RUN1 -->
+    <section class="slide" id="toc-run1">
+      <span class="tag">run1 · forward pass</span>
+      <h2>Jak sieć liczy odpowiedź?</h2>
+      <div class="triad">
+        <div class="card theory">
+          <span class="badge t">Teoria</span>
+          <p>Forward pass to dwa kroki: liniowy (suma ważona) i logistyczny (sigmoida).</p>
+          <div class="formula">net_input = weightsᵀ · input_vector</div>
+          <div class="formula">output = σ(β · net_input)</div>
+        </div>
+        <div class="visual">
+          <svg viewBox="0 0 500 290" role="img" aria-label="Forward pass">
+            <defs><marker id="aFwd" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#93c5fd"/></marker></defs>
+            <rect x="20" y="110" width="86" height="74" rx="14" fill="#0f172a" stroke="#38bdf8"/>
+            <text x="63" y="142" text-anchor="middle" fill="#e0f2fe" font-size="12" font-weight="700">input_</text>
+            <text x="63" y="158" text-anchor="middle" fill="#e0f2fe" font-size="12" font-weight="700">vector</text>
+            <text x="63" y="176" text-anchor="middle" fill="#bae6fd" font-size="11">cechy</text>
+            <rect x="160" y="98" width="150" height="98" rx="14" fill="#111827" stroke="#a78bfa"/>
+            <text x="235" y="138" text-anchor="middle" fill="#ede9fe" font-size="15" font-weight="700">net_input</text>
+            <text x="235" y="166" text-anchor="middle" fill="#ddd6fe" font-size="12">suma ważona</text>
+            <rect x="364" y="98" width="120" height="98" rx="14" fill="#0f172a" stroke="#34d399"/>
+            <text x="424" y="138" text-anchor="middle" fill="#bbf7d0" font-size="16" font-weight="700">output</text>
+            <text x="424" y="166" text-anchor="middle" fill="#bbf7d0" font-size="12">w (0, 1)</text>
+            <line x1="106" y1="147" x2="158" y2="147" stroke="#93c5fd" stroke-width="5" marker-end="url(#aFwd)"/>
+            <line x1="310" y1="147" x2="362" y2="147" stroke="#93c5fd" stroke-width="5" marker-end="url(#aFwd)"/>
+            <text x="250" y="250" text-anchor="middle" fill="#cbd5e1" font-size="13">regresja liniowa → funkcja logistyczna</text>
+          </svg>
+          <div class="caption">Obrazek: pobudzenie net_input trafia do sigmoidy i staje się wyjściem output.</div>
+        </div>
+        <div class="card code-ref">
+          <span class="badge c">Kod</span>
+          <pre><code>def run1(weights, input_vector):
+    beta = 5.0
+    net_input = weights.T @ input_vector
+    output = 1 / (1 + np.exp(-beta * net_input))
+    return output</code></pre>
+          <div class="why"><b>Dlaczego <code>weights.T</code>?</b> Transpozycja pozwala jednym mnożeniem policzyć pobudzenie wszystkich 3 klas naraz.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 11. CZYM JEST BŁĄD -->
+    <section class="slide" id="toc-blad">
+      <span class="tag">Mechanizm uczenia · liczenie błędu</span>
+      <h2>Czym właściwie jest błąd?</h2>
+      <div class="triad">
+        <div class="card theory">
+          <span class="badge t">Teoria</span>
+          <p>Błąd mówi, jak daleko odpowiedź jest od celu:</p>
+          <div class="formula">error = target − output</div>
+          <p>Aby mieć jedną liczbę „jak źle” dla całego przykładu, błędy podnosi się do kwadratu i sumuje (koszt).</p>
+          <div class="why"><b>Klucz:</b> koszt zależy od wag. Zmieniasz wagi → zmienia się output → zmienia się błąd. Uczenie = szukanie wag z najmniejszym kosztem.</div>
+        </div>
+        <div class="visual">
+          <svg viewBox="0 0 480 300" role="img" aria-label="Koszt jako funkcja wag">
+            <line x1="55" y1="255" x2="450" y2="255" stroke="#94a3b8" stroke-width="2"/>
+            <line x1="55" y1="35" x2="55" y2="255" stroke="#94a3b8" stroke-width="2"/>
+            <text x="430" y="278" fill="#cbd5e1" font-size="13">waga w</text>
+            <text x="20" y="46" fill="#cbd5e1" font-size="13">koszt</text>
+            <path d="M75 60 C190 340 300 340 430 60" fill="none" stroke="#a78bfa" stroke-width="4"/>
+            <circle cx="130" cy="165" r="9" fill="#fb7185"/><text x="130" y="146" text-anchor="middle" fill="#fecdd3" font-size="13">teraz</text>
+            <circle cx="252" cy="280" r="9" fill="#34d399"/><text x="300" y="285" fill="#86efac" font-size="13">minimum</text>
+          </svg>
+          <div class="caption">Obrazek: każdej wadze odpowiada koszt - szukamy dna doliny.</div>
+        </div>
+        <div class="card code-ref">
+          <span class="badge c">Kod</span>
+          <pre><code>error = target - output</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- 12. SUMA PO KLASACH -->
+    <section class="slide">
+      <span class="tag">Po czym jest ta suma?</span>
+      <h2>Σ sumuje po klasach (wyjściach)</h2>
+      <div class="triad">
+        <div class="card theory">
+          <span class="badge t">Teoria</span>
+          <p>Sieć ma 3 wyjścia, więc <code>target</code> i <code>output</code> to wektory długości 3. Suma idzie po klasach <code>k = 1..K</code>:</p>
+          <div class="formula">Koszt = ½ · Σ<sub>k</sub> (target<sub>k</sub> − output<sub>k</sub>)²</div>
+          <div class="why"><b>Dlaczego suma?</b> Z wielu wyjść robimy jedną liczbę. Kwadrat sprawia, że błędy się nie kasują, a duże pomyłki bolą bardziej.</div>
+        </div>
+        <div class="visual">
+          <svg viewBox="0 0 480 300" role="img" aria-label="Suma błędów po klasach">
+            <g font-family="Consolas, monospace" font-size="13" text-anchor="middle">
+              <text x="110" y="36" fill="#bae6fd">target</text><text x="240" y="36" fill="#fde68a">output</text><text x="372" y="36" fill="#fecdd3">(t−out)²</text>
+              <rect x="75" y="50" width="70" height="40" fill="#16a34a"/><text x="110" y="76" fill="#fff">1</text>
+              <rect x="205" y="50" width="70" height="40" fill="#0f172a" stroke="#f59e0b"/><text x="240" y="76" fill="#fde68a">0.38</text>
+              <rect x="340" y="50" width="90" height="40" fill="#0f172a" stroke="#fb7185"/><text x="385" y="76" fill="#fecdd3">0.384</text>
+              <rect x="75" y="98" width="70" height="40" fill="#0f172a" stroke="#334155"/><text x="110" y="124" fill="#cbd5e1">0</text>
+              <rect x="205" y="98" width="70" height="40" fill="#0f172a" stroke="#f59e0b"/><text x="240" y="124" fill="#fde68a">0.62</text>
+              <rect x="340" y="98" width="90" height="40" fill="#0f172a" stroke="#fb7185"/><text x="385" y="124" fill="#fecdd3">0.384</text>
+              <rect x="75" y="146" width="70" height="40" fill="#0f172a" stroke="#334155"/><text x="110" y="172" fill="#cbd5e1">0</text>
+              <rect x="205" y="146" width="70" height="40" fill="#0f172a" stroke="#f59e0b"/><text x="240" y="172" fill="#fde68a">0.63</text>
+              <rect x="340" y="146" width="90" height="40" fill="#0f172a" stroke="#fb7185"/><text x="385" y="172" fill="#fecdd3">0.397</text>
+            </g>
+            <line x1="340" y1="200" x2="430" y2="200" stroke="#94a3b8" stroke-width="2"/>
+            <text x="385" y="226" text-anchor="middle" fill="#fecdd3" font-size="14">Σ = 1.166</text>
+            <text x="240" y="270" text-anchor="middle" fill="#86efac" font-size="15">½ · 1.166 ≈ 0.583</text>
+          </svg>
+          <div class="caption">Obrazek: każda klasa wnosi swój kwadrat błędu; sumujemy w jedną liczbę.</div>
+        </div>
+        <div class="card code-ref">
+          <span class="badge c">Kod</span>
+          <pre><code># koszt nie jest liczony wprost - służy do wyprowadzenia reguły.
+# w kodzie zostaje sam błąd na każdym wyjściu:
+error = target - output</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- 13. DLACZEGO POCHODNA -->
+    <section class="slide">
+      <span class="tag">Dlaczego pochodna?</span>
+      <h2>Pochodna = nachylenie zbocza</h2>
+      <div class="cols">
+        <div class="visual">
+          <svg viewBox="0 0 480 300" role="img" aria-label="Pochodna jako nachylenie">
+            <defs><marker id="aHill" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#34d399"/></marker></defs>
+            <line x1="45" y1="262" x2="450" y2="262" stroke="#94a3b8" stroke-width="2"/>
+            <path d="M65 80 C190 340 300 340 440 100" fill="none" stroke="#475569" stroke-width="3"/>
+            <circle cx="140" cy="178" r="11" fill="#fb7185"/>
+            <line x1="88" y1="140" x2="200" y2="226" stroke="#fbbf24" stroke-width="4"/>
+            <text x="210" y="160" fill="#fde68a" font-size="13">styczna = nachylenie</text>
+            <path d="M140 192 C140 226 162 236 195 240" stroke="#34d399" stroke-width="4" fill="none" marker-end="url(#aHill)"/>
+            <text x="200" y="258" fill="#86efac" font-size="13">idź w dół</text>
+            <text x="140" y="160" text-anchor="middle" fill="#fecdd3" font-size="12">jesteś tu</text>
+          </svg>
+          <div class="caption">Obrazek: pochodna mówi, w którą stronę i jak stromo opada błąd.</div>
+        </div>
+        <div class="card">
+          <span class="badge t">Teoria</span>
+          <p>Stoisz na zboczu we mgle. Nie widzisz dna, ale <b>czujesz nachylenie</b> - to pochodna.</p>
+          <ul>
+            <li><b>znak</b> → w którą stronę zmienić wagę,</li>
+            <li><b>wielkość</b> → jak duży krok ma sens.</li>
+          </ul>
+          <div class="why"><b>Dlaczego nie sam błąd?</b> Błąd mówi „jest źle”, ale nie mówi <i>jak</i> ruszyć wagi. Nachylenie wskazuje kierunek: stromo = duża poprawka, płasko = mała.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 14. REGUŁA ŁAŃCUCHOWA -->
+    <section class="slide">
+      <span class="tag">Skąd bierze się output·(1−output)</span>
+      <h2>Reguła łańcuchowa: błąd wraca przez sigmoidę</h2>
+      <div class="triad">
+        <div class="card theory">
+          <span class="badge t">Teoria</span>
+          <p>Waga nie wpływa na błąd wprost, tylko przez łańcuch:</p>
+          <div class="formula">weights → net_input → output → błąd</div>
+          <p>Wpływ wagi = iloczyn czułości na każdym ogniwie:</p>
+          <div class="formula">∂błąd/∂weights = error · output(1−output) · input_vector</div>
+        </div>
+        <div class="visual">
+          <svg viewBox="0 0 480 300" role="img" aria-label="Reguła łańcuchowa">
+            <defs><marker id="aCh" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#93c5fd"/></marker></defs>
+            <rect x="30" y="60" width="90" height="52" rx="12" fill="#0f172a" stroke="#38bdf8"/><text x="75" y="91" text-anchor="middle" fill="#e0f2fe" font-size="13" font-weight="700">weights</text>
+            <rect x="195" y="60" width="90" height="52" rx="12" fill="#111827" stroke="#a78bfa"/><text x="240" y="91" text-anchor="middle" fill="#ede9fe" font-size="12" font-weight="700">net_input</text>
+            <rect x="360" y="60" width="90" height="52" rx="12" fill="#0f172a" stroke="#34d399"/><text x="405" y="91" text-anchor="middle" fill="#bbf7d0" font-size="13" font-weight="700">output</text>
+            <rect x="195" y="195" width="90" height="52" rx="12" fill="#0f172a" stroke="#fbbf24"/><text x="240" y="227" text-anchor="middle" fill="#fde68a" font-size="16" font-weight="700">błąd</text>
+            <line x1="120" y1="86" x2="193" y2="86" stroke="#93c5fd" stroke-width="4" marker-end="url(#aCh)"/><text x="156" y="50" text-anchor="middle" fill="#bae6fd" font-size="11">· input</text>
+            <line x1="285" y1="86" x2="358" y2="86" stroke="#93c5fd" stroke-width="4" marker-end="url(#aCh)"/><text x="322" y="50" text-anchor="middle" fill="#86efac" font-size="10">· out(1−out)</text>
+            <line x1="385" y1="112" x2="285" y2="198" stroke="#fb7185" stroke-width="4" marker-end="url(#aCh)"/><text x="365" y="170" fill="#fecdd3" font-size="11">· error</text>
+          </svg>
+          <div class="caption">Obrazek: poprawka = iloczyn trzech czułości wzdłuż łańcucha.</div>
+        </div>
+        <div class="card code-ref">
+          <span class="badge c">Kod</span>
+          <pre><code>delta = beta * error * output * (1 - output)</code></pre>
+          <div class="why"><b>Dlaczego pochodna sigmoidy?</b> Błąd liczymy na <code>output</code>, a kręcimy <code>weights</code>, które najpierw zmieniają <code>net_input</code>. „O ile zmieni się output, gdy ruszę net_input?” to właśnie <code>output·(1−output)</code>.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 15. REGUŁA DELTY -->
+    <section class="slide" id="toc-delta">
+      <span class="tag">Reguła delty · spadek gradientu</span>
+      <h2>Jak dokładnie zmieniają się wagi?</h2>
+      <div class="triad">
+        <div class="card theory">
+          <span class="badge t">Teoria</span>
+          <div class="formula">Δweights = η · (input_vector · deltaᵀ)</div>
+          <ul>
+            <li><code>η</code> = wielkość kroku (learning_rate),</li>
+            <li><code>input_vector</code> = które cechy były aktywne,</li>
+            <li><code>delta</code> = jak i w którą stronę poprawić.</li>
+          </ul>
+          <div class="why"><b>Dlaczego razy <code>input_vector</code>?</b> Wagę przy cesze zmieniamy tylko, gdy ta cecha coś wnosiła. Cecha zerowa nie rusza swojej wagi.</div>
+        </div>
+        <div class="visual">
+          <svg viewBox="0 0 480 300" role="img" aria-label="Spadek gradientu">
+            <defs><marker id="aGd" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#93c5fd"/></marker></defs>
+            <path d="M55 60 C170 330 300 330 425 60" fill="none" stroke="#475569" stroke-width="3"/>
+            <text x="240" y="285" text-anchor="middle" fill="#cbd5e1" font-size="13">błąd jako funkcja wag</text>
+            <circle cx="110" cy="155" r="11" fill="#fb7185"/><circle cx="165" cy="225" r="11" fill="#fbbf24"/>
+            <circle cx="220" cy="262" r="11" fill="#a78bfa"/><circle cx="242" cy="272" r="11" fill="#34d399"/>
+            <g stroke="#93c5fd" stroke-width="3" fill="none" marker-end="url(#aGd)">
+              <path d="M122 163 L153 216"/><path d="M177 232 L208 256"/>
+            </g>
+            <text x="110" y="136" text-anchor="middle" fill="#fecdd3" font-size="12">start</text>
+            <text x="250" y="258" fill="#86efac" font-size="12">minimum</text>
+          </svg>
+          <div class="caption">Obrazek: każda poprawka to krok w dół po dolinie błędu.</div>
+        </div>
+        <div class="card code-ref">
+          <span class="badge c">Kod</span>
+          <pre><code>delta = beta * error * output * (1 - output)
+weight_update = learning_rate * (input_vector @ delta.T)
+weights = weights + weight_update</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- 15b. JAK ZMIENIA SIĘ POJEDYNCZA WAGA -->
+    <section class="slide">
+      <span class="tag">Sedno · zmiana pojedynczej wagi</span>
+      <h2>Jak dokładnie modyfikowana jest jedna waga?</h2>
+      <div class="triad">
+        <div class="card theory">
+          <span class="badge t">Teoria</span>
+          <p>Wagi nie zmieniają się „hurtem”. Każda pojedyncza waga między cechą <code>i</code> a neuronem <code>j</code> dostaje własną, niezależną poprawkę:</p>
+          <div class="formula">w<sub>ij</sub> ← w<sub>ij</sub> + η · input<sub>i</sub> · delta<sub>j</sub></div>
+          <ul>
+            <li><code>input<sub>i</sub></code> — wartość cechy (jak mocno była aktywna),</li>
+            <li><code>delta<sub>j</sub></code> — poprawka neuronu (znak = kierunek),</li>
+            <li><code>η = 0.1</code> — wielkość kroku.</li>
+          </ul>
+          <div class="why"><b>Klucz:</b> <u>znak</u> <code>delta<sub>j</sub></code> decyduje, czy waga rośnie (podbić klasę) czy maleje (wyciszyć). <u>Wielkość</u> <code>input<sub>i</sub></code> decyduje, jak mocno — cecha bliska zeru prawie nie rusza swojej wagi.</div>
+        </div>
+        <div class="visual">
+          <svg viewBox="0 0 520 350" role="img" aria-label="Aktualizacja pojedynczych wag z liczbami">
+            <text x="260" y="20" text-anchor="middle" fill="#cbd5e1" font-size="11" font-family="Consolas, monospace">krok 1 na przykładzie „ssak”:  input(nogi)=4.0,  delta=[+0.73, −0.73, −0.73],  η=0.1</text>
+
+            <!-- waga rośnie -->
+            <rect x="18" y="34" width="484" height="86" rx="12" fill="#0b1020" stroke="#34d399" stroke-width="1.6"/>
+            <text x="36" y="62" fill="#bbf7d0" font-size="15" font-weight="700">nogi → ssak</text>
+            <text x="160" y="62" fill="#94a3b8" font-size="12" font-family="Consolas, monospace">(w_old = 0.007)</text>
+            <text x="36" y="88" fill="#e0f2fe" font-size="13.5" font-family="Consolas, monospace">w_new = 0.007 + 0.1×4.0×(+0.73) = 0.299</text>
+            <text x="36" y="110" fill="#86efac" font-size="11.5">delta dodatnia → waga ROŚNIE → mocniej głosuje na ssaka</text>
+            <text x="476" y="80" text-anchor="end" fill="#34d399" font-size="30" font-weight="700">▲</text>
+
+            <!-- waga maleje -->
+            <rect x="18" y="130" width="484" height="86" rx="12" fill="#0b1020" stroke="#fb7185" stroke-width="1.6"/>
+            <text x="36" y="158" fill="#fecdd3" font-size="15" font-weight="700">nogi → ptak</text>
+            <text x="160" y="158" fill="#94a3b8" font-size="12" font-family="Consolas, monospace">(w_old = 0.007)</text>
+            <text x="36" y="184" fill="#e0f2fe" font-size="13.5" font-family="Consolas, monospace">w_new = 0.007 + 0.1×4.0×(−0.73) = −0.286</text>
+            <text x="36" y="206" fill="#fda4af" font-size="11.5">delta ujemna → waga MALEJE → wycisza ptaka</text>
+            <text x="476" y="176" text-anchor="end" fill="#fb7185" font-size="30" font-weight="700">▼</text>
+
+            <!-- waga prawie bez zmian -->
+            <rect x="18" y="226" width="484" height="86" rx="12" fill="#0b1020" stroke="#64748b" stroke-width="1.6"/>
+            <text x="36" y="254" fill="#e2e8f0" font-size="15" font-weight="700">woda → ssak</text>
+            <text x="160" y="254" fill="#94a3b8" font-size="12" font-family="Consolas, monospace">(w_old = 0.043)</text>
+            <text x="36" y="280" fill="#e0f2fe" font-size="13.5" font-family="Consolas, monospace">w_new = 0.043 + 0.1×0.01×(+0.73) ≈ 0.043</text>
+            <text x="36" y="302" fill="#94a3b8" font-size="11.5">input ≈ 0 → poprawka znikoma → waga prawie bez zmian</text>
+            <text x="476" y="272" text-anchor="end" fill="#94a3b8" font-size="26" font-weight="700">≈</text>
+          </svg>
+          <div class="caption">Obrazek: ta sama cecha „nogi”, ale waga do ssaka rośnie, a do ptaka maleje — bo ich delty mają przeciwne znaki.</div>
+        </div>
+        <div class="card code-ref">
+          <span class="badge c">Kod</span>
+          <pre><code># delta dla przykładu „ssak”
+delta = beta * error * output * (1 - output)
+# delta ≈ [[+0.73],
+#          [-0.73],
+#          [-0.73]]
+
+# iloczyn zewnętrzny: każdy element (i,j) = inputᵢ · deltaⱼ
+weight_update = learning_rate * (input_vector @ delta.T)
+weights = weights + weight_update</code></pre>
+          <div class="why"><b>Macierz w jednej linii:</b> <code>input_vector @ delta.T</code> liczy naraz wszystkie 15 poprawek — każda komórka to po prostu <code>inputᵢ · deltaⱼ</code>.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 16. JEDEN PEŁNY KROK -->
+    <section class="slide">
+      <span class="tag">Jeden pełny krok uczenia · od A do Z</span>
+      <h2>Prześledźmy jedną iterację na liczbach</h2>
+      <div class="triad">
+        <div class="card theory">
+          <span class="badge t">Teoria</span>
+          <p>Pętla wylosowała przykład „ssak”. Dla neuronu „ssak”:</p>
+          <ul>
+            <li>1. wybór: <code>input_vector</code>, <code>target=[1,0,0]</code></li>
+            <li>2. forward: <code>output = 0.38</code></li>
+            <li>3. błąd: <code>error = 1 − 0.38 = 0.62</code></li>
+            <li>4. delta: <code>5·0.62·0.38·0.62 ≈ 0.73</code></li>
+            <li>5. poprawka: <code>η · input · deltaᵀ</code></li>
+            <li>6. <code>weights += weight_update</code></li>
+          </ul>
+        </div>
+        <div class="visual">
+          <svg viewBox="0 0 500 430" role="img" aria-label="Jeden pełny krok">
+            <defs><marker id="aS" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#93c5fd"/></marker></defs>
+            <circle cx="38" cy="34" r="15" fill="#0f172a" stroke="#38bdf8"/><text x="38" y="39" text-anchor="middle" fill="#bae6fd" font-size="14" font-weight="700">1</text>
+            <rect x="64" y="14" width="420" height="40" rx="9" fill="#0f172a" stroke="#38bdf8"/><text x="80" y="39" fill="#e0f2fe" font-size="14">wylosuj: input_vector + target</text>
+            <line x1="38" y1="54" x2="38" y2="72" stroke="#93c5fd" stroke-width="3" marker-end="url(#aS)"/>
+            <circle cx="38" cy="94" r="15" fill="#111827" stroke="#a78bfa"/><text x="38" y="99" text-anchor="middle" fill="#ddd6fe" font-size="14" font-weight="700">2</text>
+            <rect x="64" y="74" width="420" height="40" rx="9" fill="#111827" stroke="#a78bfa"/><text x="80" y="99" fill="#ede9fe" font-size="14">forward pass → output = 0.38</text>
+            <line x1="38" y1="114" x2="38" y2="132" stroke="#93c5fd" stroke-width="3" marker-end="url(#aS)"/>
+            <circle cx="38" cy="154" r="15" fill="#0f172a" stroke="#fbbf24"/><text x="38" y="159" text-anchor="middle" fill="#fde68a" font-size="14" font-weight="700">3</text>
+            <rect x="64" y="134" width="420" height="40" rx="9" fill="#0f172a" stroke="#fbbf24"/><text x="80" y="159" fill="#fde68a" font-size="14">error = 1 − 0.38 = 0.62</text>
+            <line x1="38" y1="174" x2="38" y2="192" stroke="#93c5fd" stroke-width="3" marker-end="url(#aS)"/>
+            <circle cx="38" cy="214" r="15" fill="#0f172a" stroke="#34d399"/><text x="38" y="219" text-anchor="middle" fill="#bbf7d0" font-size="14" font-weight="700">4</text>
+            <rect x="64" y="194" width="420" height="40" rx="9" fill="#0f172a" stroke="#34d399"/><text x="80" y="219" fill="#bbf7d0" font-size="14">delta = 5·0.62·0.38·0.62 ≈ 0.73</text>
+            <line x1="38" y1="234" x2="38" y2="252" stroke="#93c5fd" stroke-width="3" marker-end="url(#aS)"/>
+            <circle cx="38" cy="274" r="15" fill="#0f172a" stroke="#fb7185"/><text x="38" y="279" text-anchor="middle" fill="#fecdd3" font-size="14" font-weight="700">5</text>
+            <rect x="64" y="254" width="420" height="40" rx="9" fill="#0f172a" stroke="#fb7185"/><text x="80" y="279" fill="#fecdd3" font-size="14">weight_update = 0.1 · input · deltaᵀ</text>
+            <line x1="38" y1="294" x2="38" y2="312" stroke="#93c5fd" stroke-width="3" marker-end="url(#aS)"/>
+            <circle cx="38" cy="334" r="15" fill="#1e293b" stroke="#38bdf8"/><text x="38" y="339" text-anchor="middle" fill="#bae6fd" font-size="14" font-weight="700">6</text>
+            <rect x="64" y="314" width="420" height="40" rx="9" fill="#1e293b" stroke="#38bdf8"/><text x="80" y="339" fill="#e0f2fe" font-size="14">weights += weight_update</text>
+            <path d="M64 394 C18 394 18 34 22 34" fill="none" stroke="#34d399" stroke-width="3" stroke-dasharray="7 6" marker-end="url(#aS)"/>
+            <rect x="64" y="374" width="420" height="38" rx="9" fill="#0b1020" stroke="#34d399"/><text x="274" y="398" text-anchor="middle" fill="#86efac" font-size="13">powtórz dla kolejnego losowego przykładu</text>
+          </svg>
+          <div class="caption">Obrazek: sześć podkroków jednej iteracji + powrót w pętli.</div>
+        </div>
+        <div class="card code-ref">
+          <span class="badge c">Kod</span>
+          <pre><code>output = run1(weights, input_vector)
+error = target - output
+delta = beta * error * output * (1 - output)
+weight_update = learning_rate * (input_vector @ delta.T)
+weights = weights + weight_update</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- 16b. PEŁNY KROK Z WYLICZENIAMI KAŻDEGO PARAMETRU -->
+    <section class="slide" id="toc-krok1">
+      <span class="tag">Pełny krok uczenia · wszystkie parametry</span>
+      <h2>Jeden krok uczenia — pełne wyliczenia każdego parametru</h2>
+      <p style="color:var(--muted); margin-top:-2px">Pierwszy krok pętli, wylosowany przykład „ssak”. Stałe: β = 5, learning_rate η = 0.1.</p>
+
+      <div class="cols">
+        <div class="card">
+          <h3><span class="stepnum">1</span>Stan sieci PRZED  (<code>weights_before</code>)</h3>
+          <table class="mtx">
+            <caption>wiersze = cechy, kolumny = neurony-klasy · kształt (5, 3)</caption>
+            <tr><th></th><th>ssak</th><th>ptak</th><th>ryba</th></tr>
+            <tr><td class="rl">nogi</td><td>0.0066</td><td>0.0068</td><td>0.0019</td></tr>
+            <tr><td class="rl">woda</td><td>0.0427</td><td>−0.0486</td><td>0.0505</td></tr>
+            <tr><td class="rl">latanie</td><td>0.0768</td><td>−0.0690</td><td>0.0341</td></tr>
+            <tr><td class="rl">pióra</td><td>0.0287</td><td>0.0447</td><td>0.0497</td></tr>
+            <tr><td class="rl">jajorodność</td><td>0.0637</td><td>−0.0804</td><td>−0.0993</td></tr>
+          </table>
+        </div>
+        <div class="card">
+          <h3><span class="stepnum">2</span>Dane wejściowe</h3>
+          <div class="kvbox">
+            <span class="lab">input_vector</span> (5 cech):<br>
+            &nbsp;&nbsp;nogi = 4.0<br>
+            &nbsp;&nbsp;woda = 0.01<br>
+            &nbsp;&nbsp;latanie = 0.01<br>
+            &nbsp;&nbsp;pióra = −1.0<br>
+            &nbsp;&nbsp;jajorodność = −1.5<br><br>
+            <span class="lab">target</span> (ssak) = [1, 0, 0]
+          </div>
+        </div>
+      </div>
+
+      <div class="card step-card">
+        <h3><span class="stepnum">3</span>Forward pass — pobudzenie i wyjście każdego neuronu</h3>
+        <p style="margin:4px 0">net_input = Wᵀ · input_vector (suma ważona po 5 cechach):</p>
+        <div class="formula">net_ssak = 0.0066·4 + 0.0427·0.01 + 0.0768·0.01 + 0.0287·(−1) + 0.0637·(−1.5) ≈ −0.0968</div>
+        <div class="formula">net_ptak = 0.0068·4 + (−0.0486)·0.01 + (−0.0690)·0.01 + 0.0447·(−1) + (−0.0804)·(−1.5) ≈ +0.1020</div>
+        <div class="formula">net_ryba = 0.0019·4 + 0.0505·0.01 + 0.0341·0.01 + 0.0497·(−1) + (−0.0993)·(−1.5) ≈ +0.1077</div>
+        <p style="margin:8px 0 4px">output = σ(β · net_input) = 1 / (1 + e<sup>−5·net</sup>):</p>
+        <div class="formula">out_ssak = σ(5·−0.0968) = 0.3813 &nbsp;|&nbsp; out_ptak = σ(5·0.1020) = 0.6248 &nbsp;|&nbsp; out_ryba = σ(5·0.1077) = 0.6314</div>
+      </div>
+
+      <div class="card step-card">
+        <h3><span class="stepnum">4</span>Błąd i delta każdego neuronu</h3>
+        <p style="margin:4px 0">error = target − output:</p>
+        <div class="formula">error = [1−0.3813,  0−0.6248,  0−0.6314] = [ +0.6187,  −0.6248,  −0.6314 ]</div>
+        <p style="margin:8px 0 4px">delta = β · error · output · (1 − output)  (pochodna sigmoidy = output·(1−output)):</p>
+        <div class="formula">delta_ssak = 5 · (+0.6187) · 0.3813 · (1−0.3813) = +0.7298</div>
+        <div class="formula">delta_ptak = 5 · (−0.6248) · 0.6248 · (1−0.6248) = −0.7324</div>
+        <div class="formula">delta_ryba = 5 · (−0.6314) · 0.6314 · (1−0.6314) = −0.7348</div>
+      </div>
+
+      <div class="card step-card">
+        <h3><span class="stepnum">5</span>Poprawka każdej z 15 wag:  Δw<sub>ij</sub> = η · input<sub>i</sub> · delta<sub>j</sub></h3>
+        <table class="mtx">
+          <caption>weight_update = 0.1 · (input_vector @ delta.T) · zielone = waga rośnie, czerwone = maleje</caption>
+          <tr><th></th><th>ssak (Δ)</th><th>ptak (Δ)</th><th>ryba (Δ)</th></tr>
+          <tr><td class="rl">nogi (4.0)</td><td class="up">+0.2919</td><td class="dn">−0.2929</td><td class="dn">−0.2939</td></tr>
+          <tr><td class="rl">woda (0.01)</td><td class="up">+0.0007</td><td class="dn">−0.0007</td><td class="dn">−0.0007</td></tr>
+          <tr><td class="rl">latanie (0.01)</td><td class="up">+0.0007</td><td class="dn">−0.0007</td><td class="dn">−0.0007</td></tr>
+          <tr><td class="rl">pióra (−1.0)</td><td class="dn">−0.0730</td><td class="up">+0.0732</td><td class="up">+0.0735</td></tr>
+          <tr><td class="rl">jajorodność (−1.5)</td><td class="dn">−0.1095</td><td class="up">+0.1099</td><td class="up">+0.1102</td></tr>
+        </table>
+        <div class="why">Każda komórka = <code>0.1 · (wartość cechy) · (delta neuronu)</code>. Mocna cecha „nogi” = 4 daje duże poprawki; „woda/latanie” ≈ 0 — poprawki znikome. Znak bierze się ze znaku delty (ssak: +, ptak/ryba: −) razy znak cechy.</div>
+      </div>
+
+      <div class="card step-card">
+        <h3><span class="stepnum">6</span>Stan sieci: BYŁO → JEST (w jednej tabeli)</h3>
+        <table class="mtx">
+          <caption>każda komórka: <span class="o">waga przed</span> → <b>waga po</b> · ▲ wzrost (zielone), ▼ spadek (czerwone)</caption>
+          <tr><th></th><th>ssak</th><th>ptak</th><th>ryba</th></tr>
+          <tr><td class="rl">nogi</td>
+            <td class="up"><span class="o">0.0066</span> → <b>0.2985</b> ▲</td>
+            <td class="dn"><span class="o">0.0068</span> → <b>−0.2861</b> ▼</td>
+            <td class="dn"><span class="o">0.0019</span> → <b>−0.2920</b> ▼</td></tr>
+          <tr><td class="rl">woda</td>
+            <td class="up"><span class="o">0.0427</span> → <b>0.0434</b> ▲</td>
+            <td class="dn"><span class="o">−0.0486</span> → <b>−0.0493</b> ▼</td>
+            <td class="dn"><span class="o">0.0505</span> → <b>0.0498</b> ▼</td></tr>
+          <tr><td class="rl">latanie</td>
+            <td class="up"><span class="o">0.0768</span> → <b>0.0775</b> ▲</td>
+            <td class="dn"><span class="o">−0.0690</span> → <b>−0.0698</b> ▼</td>
+            <td class="dn"><span class="o">0.0341</span> → <b>0.0334</b> ▼</td></tr>
+          <tr><td class="rl">pióra</td>
+            <td class="dn"><span class="o">0.0287</span> → <b>−0.0443</b> ▼</td>
+            <td class="up"><span class="o">0.0447</span> → <b>0.1180</b> ▲</td>
+            <td class="up"><span class="o">0.0497</span> → <b>0.1232</b> ▲</td></tr>
+          <tr><td class="rl">jajorodność</td>
+            <td class="dn"><span class="o">0.0637</span> → <b>−0.0458</b> ▼</td>
+            <td class="up"><span class="o">−0.0804</span> → <b>0.0294</b> ▲</td>
+            <td class="up"><span class="o">−0.0993</span> → <b>0.0109</b> ▲</td></tr>
+        </table>
+        <div class="why"><b>Efekt jednego kroku:</b> wagi neuronu „ssak” przy cechach dodatnich wzrosły (np. nogi: 0.0066 → 0.2985), a wagi „ptak/ryba” przy tych cechach spadły. Sieć po tym jednym kroku odrobinę pewniej wskaże ssaka — i tak 100 razy.</div>
+      </div>
+    </section>
+
+    <!-- 17. PĘTLA: STEP VS EPOKA -->
+    <section class="slide" id="toc-petla">
+      <span class="tag">train1 · przebieg uczenia</span>
+      <h2>Pętla: step vs epoka</h2>
+      <div class="triad">
+        <div class="card theory">
+          <span class="badge t">Teoria</span>
+          <p>Jeden <b>step</b> = jedna poprawka na jednym losowym przykładzie. Tu pętla robi 100 stepów.</p>
+          <p>Pełna <b>epoka</b> = jedno przejście przez wszystkie przykłady.</p>
+          <div class="why"><b>Dlaczego losowo?</b> Uczenie stochastyczne (próbka po próbce) jest proste i pozwala wagom stopniowo „osiąść”.</div>
+        </div>
+        <div class="visual">
+          <svg viewBox="0 0 480 320" role="img" aria-label="Cykl treningu">
+            <defs><marker id="aLp" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#93c5fd"/></marker></defs>
+            <circle cx="240" cy="160" r="110" fill="none" stroke="#1f2937" stroke-width="2" stroke-dasharray="6 8"/>
+            <rect x="178" y="18" width="124" height="46" rx="11" fill="#0f172a" stroke="#38bdf8"/><text x="240" y="46" text-anchor="middle" fill="#e0f2fe" font-size="14">1. losuj przykład</text>
+            <rect x="350" y="135" width="120" height="46" rx="11" fill="#111827" stroke="#a78bfa"/><text x="410" y="163" text-anchor="middle" fill="#ede9fe" font-size="14">2. policz output</text>
+            <rect x="178" y="256" width="124" height="46" rx="11" fill="#0f172a" stroke="#fbbf24"/><text x="240" y="284" text-anchor="middle" fill="#fde68a" font-size="14">3. zmierz błąd</text>
+            <rect x="10" y="135" width="120" height="46" rx="11" fill="#0f172a" stroke="#34d399"/><text x="70" y="163" text-anchor="middle" fill="#bbf7d0" font-size="14">4. popraw wagi</text>
+            <path d="M302 44 C370 64 392 98 408 132" stroke="#93c5fd" stroke-width="3" fill="none" marker-end="url(#aLp)"/>
+            <path d="M400 181 C355 238 325 250 302 270" stroke="#93c5fd" stroke-width="3" fill="none" marker-end="url(#aLp)"/>
+            <path d="M178 284 C115 254 92 216 78 182" stroke="#93c5fd" stroke-width="3" fill="none" marker-end="url(#aLp)"/>
+            <path d="M70 135 C86 86 130 58 176 46" stroke="#93c5fd" stroke-width="3" fill="none" marker-end="url(#aLp)"/>
+          </svg>
+          <div class="caption">Obrazek: jedna iteracja = jeden step; 100 stepów = trening.</div>
+        </div>
+        <div class="card code-ref">
+          <span class="badge c">Kod</span>
+          <pre><code>for step in range(num_iterations):   # 100 stepów
+    example_idx = np.random.randint(num_examples)
+    input_vector = training_inputs[:, example_idx].reshape(-1,1)
+    output = run1(weights, input_vector)
+    target = targets[:, example_idx].reshape(-1,1)
+    ...
+    weights = weights + weight_update</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- 17b. MSE - MONITOROWANIE UCZENIA -->
+    <section class="slide">
+      <span class="tag">MSE · monitorowanie uczenia</span>
+      <h2>MSE — czy sieć naprawdę się uczy?</h2>
+      <div class="triad">
+        <div class="card theory">
+          <span class="badge t">Teoria</span>
+          <p><b>MSE (Mean Squared Error)</b> to jedna liczba mówiąca „jak bardzo sieć się myli” w danym kroku. W kodzie liczona dla wylosowanego przykładu:</p>
+          <div class="formula">MSE = ½ · (1/K) · Σ<sub>k</sub> error<sub>k</sub>²</div>
+          <ul>
+            <li><code>error.T @ error</code> = Σ error<sub>k</sub>² (suma kwadratów po K=3 wyjściach),</li>
+            <li><code>1/K</code> = średnia po wyjściach (stąd „Mean”),</li>
+            <li><code>½</code> = czynnik zgodny ze wzorem kosztu (ładna pochodna).</li>
+          </ul>
+          <div class="why"><b>Po co?</b> Zapisujemy MSE w każdym kroku do tablicy <code>MSE_step</code>, by zobaczyć trend: jeśli uczenie działa, błąd ma <b>maleć</b> w czasie.</div>
+        </div>
+        <div class="visual">
+          <svg viewBox="0 0 560 320" role="img" aria-label="Krzywa MSE w trakcie uczenia">
+            <!-- siatka pozioma + etykiety osi Y -->
+            <g stroke="#1f2937" stroke-width="1" stroke-dasharray="4 5">
+              <line x1="60" y1="40"  x2="540" y2="40"/>
+              <line x1="60" y1="97.5" x2="540" y2="97.5"/>
+              <line x1="60" y1="155" x2="540" y2="155"/>
+              <line x1="60" y1="212.5" x2="540" y2="212.5"/>
+            </g>
+            <g fill="#cbd5e1" font-size="12" text-anchor="end">
+              <text x="52" y="44">0.20</text>
+              <text x="52" y="101">0.15</text>
+              <text x="52" y="159">0.10</text>
+              <text x="52" y="216">0.05</text>
+              <text x="52" y="274">0.00</text>
+            </g>
+            <!-- osie -->
+            <line x1="60" y1="40" x2="60" y2="270" stroke="#94a3b8" stroke-width="2"/>
+            <line x1="60" y1="270" x2="540" y2="270" stroke="#94a3b8" stroke-width="2"/>
+            <!-- etykiety osi X (krok) -->
+            <g fill="#cbd5e1" font-size="12" text-anchor="middle">
+              <text x="60"  y="288">0</text>
+              <text x="181" y="288">25</text>
+              <text x="302" y="288">50</text>
+              <text x="424" y="288">75</text>
+              <text x="540" y="288">100</text>
+            </g>
+            <!-- krzywa MSE (rzeczywiste 100 kroków) -->
+            <polyline fill="none" stroke="#34d399" stroke-width="2.2" stroke-linejoin="round"
+              points="60.0,45.4 64.8,205.3 69.7,46.2 74.5,269.8 79.4,269.8 84.2,92.3 89.1,270.0 93.9,269.7 98.8,144.1 103.6,259.5 108.5,270.0 113.3,270.0 118.2,270.0 123.0,269.7 127.9,269.4 132.7,270.0 137.6,269.7 142.4,270.0 147.3,269.5 152.1,269.7 157.0,269.7 161.8,269.8 166.7,269.8 171.5,270.0 176.4,270.0 181.2,270.0 186.1,269.8 190.9,270.0 195.8,270.0 200.6,269.8 205.5,269.7 210.3,269.7 215.2,269.7 220.0,270.0 224.8,269.8 229.7,269.8 234.5,270.0 239.4,269.8 244.2,270.0 249.1,269.8 253.9,269.8 258.8,269.8 263.6,270.0 268.5,270.0 273.3,270.0 278.2,269.8 283.0,269.8 287.9,269.8 292.7,270.0 297.6,270.0 302.4,269.8 307.3,269.8 312.1,269.8 317.0,269.8 321.8,269.9 326.7,270.0 331.5,269.9 336.4,269.9 341.2,270.0 346.1,269.8 350.9,269.9 355.8,269.8 360.6,269.9 365.5,269.9 370.3,270.0 375.2,270.0 380.0,270.0 384.8,269.9 389.7,269.9 394.5,269.9 399.4,270.0 404.2,270.0 409.1,269.9 413.9,270.0 418.8,270.0 423.6,270.0 428.5,269.9 433.3,269.9 438.2,269.9 443.0,269.9 447.9,270.0 452.7,269.9 457.6,269.9 462.4,269.9 467.3,269.9 472.1,269.9 477.0,269.9 481.8,270.0 486.7,270.0 491.5,270.0 496.4,269.9 501.2,270.0 506.1,269.9 510.9,269.9 515.8,269.9 520.6,269.9 525.5,269.9 530.3,270.0 535.2,269.9 540.0,269.9"/>
+            <!-- adnotacje -->
+            <text x="120" y="34" fill="#fecdd3" font-size="12">duże błędy na starcie</text>
+            <path d="M150 60 C120 80 100 120 92 200" fill="none" stroke="#fb7185" stroke-width="1.5" stroke-dasharray="4 4"/>
+            <text x="430" y="255" fill="#86efac" font-size="12" text-anchor="middle">MSE ≈ 0 po ~10 krokach</text>
+            <text x="300" y="308" text-anchor="middle" fill="#94a3b8" font-size="12">krok (step)</text>
+            <text x="20" y="155" text-anchor="middle" fill="#94a3b8" font-size="12" transform="rotate(-90 20 155)">MSE</text>
+          </svg>
+          <div class="caption">Obrazek: rzeczywisty MSE z 100 kroków. „Kolce” to kroki, w których wylosowano słabiej nauczony przykład — szybko zanikają.</div>
+        </div>
+        <div class="card code-ref">
+          <span class="badge c">Kod</span>
+          <pre><code>num_outputs = targets.shape[0]
+MSE_step = np.zeros(num_iterations)
+
+for step in range(num_iterations):
+    ...
+    error = target - output
+    ...
+    MSE_step[step] = 0.5 * (1/num_outputs) * (error.T @ error).item()
+
+return weights, MSE_step</code></pre>
+          <div class="why"><b>Dlaczego „kolce”?</b> MSE liczony jest na <u>jednym losowym</u> przykładzie, nie na całym zbiorze. Gdy trafi się przykład jeszcze nie dopracowany, błąd na chwilę skacze — ale ogólny trend spada do zera.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 18. PRZED VS PO -->
+    <section class="slide">
+      <span class="tag">Efekt uczenia</span>
+      <h2>Jak zmienia się odpowiedź sieci?</h2>
+      <div class="triad">
+        <div class="card theory">
+          <span class="badge t">Teoria</span>
+          <p>Przed treningiem wyjścia są chaotyczne. Po treningu zbliżają się do wektorów one-hot z <code>targets</code>.</p>
+          <div class="why"><b>Dlaczego działa?</b> Po wielu krokach wagi „nasiąkają” regułami: cechy typowe dla ssaka podbijają neuron ssaka, a wyciszają pozostałe.</div>
+        </div>
+        <div class="visual">
+          <svg viewBox="0 0 500 290" role="img" aria-label="Wyniki przed i po">
+            <text x="135" y="30" text-anchor="middle" fill="#fde68a" font-size="15">PRZED (chaos)</text>
+            <text x="375" y="30" text-anchor="middle" fill="#86efac" font-size="15">PO (porządek)</text>
+            <g font-family="Consolas, monospace" font-size="12" text-anchor="middle">
+              <rect x="60" y="48" width="46" height="44" fill="#3f3f46"/><rect x="113" y="48" width="46" height="44" fill="#52525b"/><rect x="166" y="48" width="46" height="44" fill="#52525b"/>
+              <rect x="60" y="100" width="46" height="44" fill="#52525b"/><rect x="113" y="100" width="46" height="44" fill="#3f3f46"/><rect x="166" y="100" width="46" height="44" fill="#52525b"/>
+              <rect x="60" y="152" width="46" height="44" fill="#52525b"/><rect x="113" y="152" width="46" height="44" fill="#52525b"/><rect x="166" y="152" width="46" height="44" fill="#3f3f46"/>
+              <text x="83" y="75" fill="#fff">.38</text><text x="136" y="75" fill="#e5e7eb">.83</text><text x="189" y="75" fill="#e5e7eb">.71</text>
+              <text x="83" y="127" fill="#e5e7eb">.62</text><text x="136" y="127" fill="#fff">.35</text><text x="189" y="127" fill="#e5e7eb">.13</text>
+              <text x="83" y="179" fill="#e5e7eb">.63</text><text x="136" y="179" fill="#e5e7eb">.43</text><text x="189" y="179" fill="#fff">.41</text>
+              <rect x="300" y="48" width="46" height="44" fill="#16a34a"/><rect x="353" y="48" width="46" height="44" fill="#0f172a"/><rect x="406" y="48" width="46" height="44" fill="#0f172a"/>
+              <rect x="300" y="100" width="46" height="44" fill="#0f172a"/><rect x="353" y="100" width="46" height="44" fill="#16a34a"/><rect x="406" y="100" width="46" height="44" fill="#0f172a"/>
+              <rect x="300" y="152" width="46" height="44" fill="#0f172a"/><rect x="353" y="152" width="46" height="44" fill="#0f172a"/><rect x="406" y="152" width="46" height="44" fill="#16a34a"/>
+              <text x="323" y="75" fill="#dcfce7">.99</text><text x="376" y="75" fill="#94a3b8">.02</text><text x="429" y="75" fill="#94a3b8">.02</text>
+              <text x="323" y="127" fill="#94a3b8">.01</text><text x="376" y="127" fill="#dcfce7">.99</text><text x="429" y="127" fill="#94a3b8">.00</text>
+              <text x="323" y="179" fill="#94a3b8">.00</text><text x="376" y="179" fill="#94a3b8">.02</text><text x="429" y="179" fill="#dcfce7">.99</text>
+            </g>
+            <text x="250" y="235" text-anchor="middle" fill="#cbd5e1" font-size="13">jasna przekątna = każdy przykład trafia do swojej klasy</text>
+          </svg>
+          <div class="caption">Obrazek: trening rozjaśnia przekątną - odpowiedzi zbliżają się do one-hot.</div>
+        </div>
+        <div class="card code-ref">
+          <span class="badge c">Kod</span>
+          <pre><code>output_before = run1(weights_before, training_inputs)
+weights_after = train1(weights_before, training_inputs, targets, num_epoch)
+output_after  = run1(weights_after, training_inputs)</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- 19. GENERALIZACJA -->
+    <section class="slide">
+      <span class="tag">Generalizacja</span>
+      <h2>Nowe zwierzęta: człowiek i nietoperz</h2>
+      <div class="triad">
+        <div class="card theory">
+          <span class="badge t">Teoria</span>
+          <p>Sieć nie widziała tych przykładów, a i tak je klasyfikuje na podstawie wyuczonych wag.</p>
+          <div class="why"><b>Dlaczego nietoperz to wyzwanie?</b> Lata jak ptak, ale resztę ma jak ssak. Sieć sumuje wszystkie wpływy - wygrywa klasa o najsilniejszym łącznym pobudzeniu.</div>
+        </div>
+        <div class="visual">
+          <svg viewBox="0 0 480 290" role="img" aria-label="Klasyfikacja nietoperza">
+            <defs><marker id="aGen" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#93c5fd"/></marker></defs>
+            <rect x="20" y="110" width="120" height="74" rx="14" fill="#0f172a" stroke="#38bdf8"/>
+            <text x="80" y="140" text-anchor="middle" fill="#e0f2fe" font-size="15">nietoperz</text>
+            <text x="80" y="164" text-anchor="middle" fill="#bae6fd" font-size="11">lata + 4 łapy</text>
+            <rect x="180" y="115" width="104" height="64" rx="14" fill="#111827" stroke="#a78bfa"/>
+            <text x="232" y="153" text-anchor="middle" fill="#ede9fe" font-size="14">weights_after</text>
+            <g font-size="14">
+              <text x="330" y="105" fill="#bbf7d0">ssak  0.99</text><rect x="330" y="114" width="120" height="13" rx="6" fill="#16a34a"/>
+              <text x="330" y="158" fill="#bae6fd">ptak  0.00</text><rect x="330" y="167" width="6" height="13" rx="3" fill="#334155"/>
+              <text x="330" y="208" fill="#bae6fd">ryba  0.00</text><rect x="330" y="217" width="4" height="13" rx="3" fill="#334155"/>
+            </g>
+            <line x1="140" y1="150" x2="178" y2="150" stroke="#93c5fd" stroke-width="4" marker-end="url(#aGen)"/>
+            <line x1="284" y1="150" x2="322" y2="150" stroke="#93c5fd" stroke-width="4" marker-end="url(#aGen)"/>
+          </svg>
+          <div class="caption">Obrazek: mimo skrzydeł cechy ssaka przeważają - sieć wskazuje „ssak”.</div>
+        </div>
+        <div class="card code-ref">
+          <span class="badge c">Kod</span>
+          <pre><code>bat = np.array([4, -5, 5, -5, -5])
+output_bat = run1(weights_after, bat)</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- 20. PODSUMOWANIE -->
+    <section class="slide">
+      <span class="tag">Podsumowanie</span>
+      <h2>Cała historia w jednym obrazie</h2>
+      <div class="visual" style="margin-top:8px;">
+        <svg viewBox="0 0 920 300" role="img" aria-label="Podsumowanie potoku">
+          <defs><marker id="aSum" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#93c5fd"/></marker></defs>
+          <rect x="20" y="120" width="135" height="64" rx="14" fill="#0f172a" stroke="#38bdf8"/><text x="87" y="148" text-anchor="middle" fill="#e0f2fe" font-size="15">input_vector</text><text x="87" y="168" text-anchor="middle" fill="#bae6fd" font-size="12">dane</text>
+          <rect x="200" y="120" width="135" height="64" rx="14" fill="#111827" stroke="#a78bfa"/><text x="267" y="148" text-anchor="middle" fill="#ede9fe" font-size="15">net_input</text><text x="267" y="168" text-anchor="middle" fill="#ddd6fe" font-size="12">regresja liniowa</text>
+          <rect x="380" y="120" width="135" height="64" rx="14" fill="#0f172a" stroke="#34d399"/><text x="447" y="148" text-anchor="middle" fill="#bbf7d0" font-size="15">output</text><text x="447" y="168" text-anchor="middle" fill="#bbf7d0" font-size="12">funkcja logistyczna</text>
+          <rect x="560" y="120" width="135" height="64" rx="14" fill="#0f172a" stroke="#fbbf24"/><text x="627" y="148" text-anchor="middle" fill="#fde68a" font-size="15">error</text><text x="627" y="168" text-anchor="middle" fill="#fde68a" font-size="12">ocena</text>
+          <rect x="740" y="120" width="160" height="64" rx="14" fill="#0f172a" stroke="#fb7185"/><text x="820" y="148" text-anchor="middle" fill="#fecdd3" font-size="15">weight_update</text><text x="820" y="168" text-anchor="middle" fill="#fecdd3" font-size="12">reguła delty</text>
+          <line x1="155" y1="152" x2="198" y2="152" stroke="#93c5fd" stroke-width="4" marker-end="url(#aSum)"/>
+          <line x1="335" y1="152" x2="378" y2="152" stroke="#93c5fd" stroke-width="4" marker-end="url(#aSum)"/>
+          <line x1="515" y1="152" x2="558" y2="152" stroke="#93c5fd" stroke-width="4" marker-end="url(#aSum)"/>
+          <line x1="695" y1="152" x2="738" y2="152" stroke="#93c5fd" stroke-width="4" marker-end="url(#aSum)"/>
+          <path d="M820 184 C820 250 267 250 267 188" fill="none" stroke="#fb7185" stroke-width="4" stroke-dasharray="8 7" marker-end="url(#aSum)"/>
+          <text x="500" y="245" text-anchor="middle" fill="#fecdd3" font-size="13">pętla: poprawione wagi wracają do forward pass</text>
+        </svg>
+        <div class="caption">Obrazek: regresja liniowa → funkcja logistyczna → błąd → reguła delty → powtórz.</div>
+      </div>
+      <div class="why"><b>Najważniejsza myśl:</b> jednowarstwowa sieć to regresja logistyczna dla wielu klas naraz, a uczenie to wielokrotne, drobne korygowanie wag w stronę mniejszego błędu.</div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- CZĘŚĆ 2 — SIEĆ DWUWARSTWOWA -->
+    <!-- ============================================================ -->
+
+    <!-- 21. DIVIDER CZĘŚĆ 2 -->
+    <section class="slide">
+      <span class="tag">Część 2 · sieć dwuwarstwowa</span>
+      <h1>Dodajemy warstwę ukrytą<br>i backpropagation</h1>
+      <p class="lead">Jedna warstwa rysuje tylko prostą granicę. Druga warstwa pozwala uczyć się granic nieliniowych — np. XOR.</p>
+      <p>Plik: <code>sieci_dwuwarstwowe_w_pythonie_stud.py</code> · funkcje <code>init2</code>, <code>run2</code>, <code>train2</code>. Nowość: <b style="color:#fecdd3">wsteczna propagacja błędu</b>.</p>
+    </section>
+
+    <!-- 22. DLACZEGO DWIE WARSTWY (XOR) -->
+    <section class="slide" id="toc-xor">
+      <span class="tag">Dlaczego jedna warstwa nie wystarcza?</span>
+      <h2>Problem XOR — granica nieliniowa</h2>
+      <div class="triad">
+        <div class="card theory">
+          <span class="badge t">Teoria</span>
+          <p>XOR: wynik = 1, gdy wejścia są <b>różne</b>; 0, gdy <b>takie same</b>.</p>
+          <div class="formula">(0,0)→0 &nbsp; (0,1)→1 &nbsp; (1,0)→1 &nbsp; (1,1)→0</div>
+          <div class="why"><b>Klucz:</b> żadna pojedyncza prosta nie oddzieli „1” od „0”. Jedna warstwa (regresja logistyczna) potrafi tylko jedną prostą granicę — więc XOR jest dla niej <u>nierozwiązywalny</u>.</div>
+        </div>
+        <div class="visual">
+          <svg viewBox="0 0 460 300" role="img" aria-label="XOR nie jest liniowo separowalny">
+            <line x1="80" y1="250" x2="420" y2="250" stroke="#94a3b8" stroke-width="2"/>
+            <line x1="80" y1="40" x2="80" y2="250" stroke="#94a3b8" stroke-width="2"/>
+            <text x="420" y="272" fill="#cbd5e1" font-size="13">wejście 1</text>
+            <text x="40" y="44" fill="#cbd5e1" font-size="13">wejście 2</text>
+            <text x="74" y="270" text-anchor="end" fill="#94a3b8" font-size="12">0</text>
+            <text x="300" y="270" text-anchor="middle" fill="#94a3b8" font-size="12">1</text>
+            <text x="64" y="90" text-anchor="end" fill="#94a3b8" font-size="12">1</text>
+            <!-- punkty -->
+            <circle cx="80" cy="250" r="13" fill="#fb7185"/><text x="80" y="255" text-anchor="middle" fill="#1f2937" font-size="13" font-weight="700">0</text>
+            <circle cx="300" cy="250" r="13" fill="#34d399"/><text x="300" y="255" text-anchor="middle" fill="#06281c" font-size="13" font-weight="700">1</text>
+            <circle cx="80" cy="80" r="13" fill="#34d399"/><text x="80" y="85" text-anchor="middle" fill="#06281c" font-size="13" font-weight="700">1</text>
+            <circle cx="300" cy="80" r="13" fill="#fb7185"/><text x="300" y="85" text-anchor="middle" fill="#1f2937" font-size="13" font-weight="700">0</text>
+            <!-- nieudana prosta -->
+            <line x1="60" y1="180" x2="360" y2="40" stroke="#fbbf24" stroke-width="2.5" stroke-dasharray="7 6"/>
+            <text x="360" y="50" fill="#fde68a" font-size="12">próba prostej…</text>
+            <text x="240" y="290" text-anchor="middle" fill="#fecdd3" font-size="13">żadna prosta nie oddzieli zielonych od czerwonych</text>
+          </svg>
+          <div class="caption">Obrazek: zielone (1) leżą po przekątnej, czerwone (0) po drugiej — potrzeba granicy łamanej.</div>
+        </div>
+        <div class="card code-ref">
+          <span class="badge c">Kod</span>
+          <pre><code>training_inputs = np.array([[0,0,1,1],
+                            [0,1,0,1]])
+targets = np.array([[0,1,1,0]])   # XOR</code></pre>
+          <div class="why"><b>Rozwiązanie:</b> warstwa ukryta tworzy nowe cechy pośrednie, a warstwa wyjściowa łączy je w granicę nieliniową.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 23. ARCHITEKTURA 2-WARSTWOWA + init2 -->
+    <section class="slide">
+      <span class="tag">init2 · dwie macierze wag</span>
+      <h2>Architektura: wejście → warstwa ukryta → wyjście</h2>
+      <div class="triad">
+        <div class="card theory">
+          <span class="badge t">Teoria</span>
+          <p>Teraz są <b>dwie</b> macierze wag i warstwa ukryta pomiędzy:</p>
+          <div class="formula">weights_layer1: (num_inputs+1, num_hidden)</div>
+          <div class="formula">weights_layer2: (num_hidden+1, num_outputs)</div>
+          <p>„+1” to wiersz dla <b>biasu</b> (stałe wejście −1) — o tym na kolejnym slajdzie.</p>
+        </div>
+        <div class="visual">
+          <svg viewBox="0 0 480 300" role="img" aria-label="Architektura dwuwarstwowa 2-2-1">
+            <!-- warstwa wejściowa -->
+            <g fill="#0f172a" stroke="#38bdf8" stroke-width="2">
+              <circle cx="70" cy="130" r="20"/><circle cx="70" cy="210" r="20"/>
+            </g>
+            <circle cx="70" cy="50" r="18" fill="#1e293b" stroke="#fbbf24" stroke-width="2"/>
+            <text x="70" y="55" text-anchor="middle" fill="#fde68a" font-size="13" font-weight="700">−1</text>
+            <text x="70" y="135" text-anchor="middle" fill="#e0f2fe" font-size="13">x₁</text>
+            <text x="70" y="215" text-anchor="middle" fill="#e0f2fe" font-size="13">x₂</text>
+            <!-- warstwa ukryta -->
+            <g fill="#111827" stroke="#a78bfa" stroke-width="2">
+              <circle cx="250" cy="130" r="22"/><circle cx="250" cy="210" r="22"/>
+            </g>
+            <circle cx="250" cy="50" r="18" fill="#1e293b" stroke="#fbbf24" stroke-width="2"/>
+            <text x="250" y="55" text-anchor="middle" fill="#fde68a" font-size="13" font-weight="700">−1</text>
+            <text x="250" y="135" text-anchor="middle" fill="#ede9fe" font-size="13">h₁</text>
+            <text x="250" y="215" text-anchor="middle" fill="#ede9fe" font-size="13">h₂</text>
+            <!-- warstwa wyjściowa -->
+            <circle cx="420" cy="170" r="24" fill="#0f172a" stroke="#34d399" stroke-width="2"/>
+            <text x="420" y="175" text-anchor="middle" fill="#bbf7d0" font-size="14">y</text>
+            <!-- połączenia W1 -->
+            <g stroke="#475569" stroke-width="1.2">
+              <line x1="88" y1="50" x2="230" y2="130"/><line x1="88" y1="50" x2="230" y2="210"/>
+              <line x1="90" y1="130" x2="230" y2="130"/><line x1="90" y1="130" x2="230" y2="210"/>
+              <line x1="90" y1="210" x2="230" y2="130"/><line x1="90" y1="210" x2="230" y2="210"/>
+            </g>
+            <!-- połączenia W2 -->
+            <g stroke="#475569" stroke-width="1.2">
+              <line x1="268" y1="50" x2="400" y2="170"/>
+              <line x1="272" y1="130" x2="398" y2="170"/><line x1="272" y1="210" x2="398" y2="170"/>
+            </g>
+            <text x="160" y="285" text-anchor="middle" fill="#c4b5fd" font-size="12">weights_layer1 (3×2)</text>
+            <text x="345" y="285" text-anchor="middle" fill="#86efac" font-size="12">weights_layer2 (3×1)</text>
+          </svg>
+          <div class="caption">Obrazek: sieć 2–2–1 dla XOR. Żółte „−1” to neurony biasu.</div>
+        </div>
+        <div class="card code-ref">
+          <span class="badge c">Kod</span>
+          <pre><code>def init2(num_inputs, num_hidden, num_outputs):
+    weights_layer1 = np.random.rand(num_inputs + 1, num_hidden) * 0.2 - 0.1
+    weights_layer2 = np.random.rand(num_hidden + 1, num_outputs) * 0.2 - 0.1
+    return weights_layer1, weights_layer2</code></pre>
+          <div class="why"><b>Dlaczego warstwa ukryta?</b> Neurony h₁, h₂ uczą się prostych granic, a wyjście y łączy je — tak powstaje granica łamana, której potrzebuje XOR.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 24. BIAS -->
+    <section class="slide" id="toc-bias">
+      <span class="tag">Neuron biasu · stałe wejście −1</span>
+      <h2>Po co dodatkowe wejście −1?</h2>
+      <div class="triad">
+        <div class="card theory">
+          <span class="badge t">Teoria</span>
+          <p>Bez biasu granica decyzyjna zawsze przechodzi przez zero. Bias <b>przesuwa próg</b> aktywacji neuronu.</p>
+          <div class="formula">net = w₀·(−1) + w₁x₁ + w₂x₂</div>
+          <p>Waga <code>w₀</code> przy stałym −1 działa jak ruchomy próg.</p>
+          <div class="why"><b>Stąd „+1” w kształcie wag:</b> każda macierz ma dodatkowy wiersz na wagę biasu. W kodzie wejście warstwy budujemy przez <code>np.vstack([-1, ...])</code>.</div>
+        </div>
+        <div class="visual">
+          <svg viewBox="0 0 460 300" role="img" aria-label="Wpływ biasu na granicę">
+            <line x1="60" y1="250" x2="420" y2="250" stroke="#94a3b8" stroke-width="2"/>
+            <line x1="60" y1="40" x2="60" y2="250" stroke="#94a3b8" stroke-width="2"/>
+            <text x="250" y="150" fill="#94a3b8" font-size="12">próg = 0.5</text>
+            <line x1="60" y1="155" x2="420" y2="155" stroke="#1f2937" stroke-width="1" stroke-dasharray="5 5"/>
+            <!-- bez biasu (przez środek) -->
+            <path d="M60 248 C190 246 215 60 420 58" fill="none" stroke="#38bdf8" stroke-width="3"/>
+            <text x="120" y="120" fill="#bae6fd" font-size="12">bez biasu</text>
+            <!-- z biasem (przesunięta) -->
+            <path d="M60 250 C280 250 300 62 420 60" fill="none" stroke="#34d399" stroke-width="3"/>
+            <text x="330" y="120" fill="#86efac" font-size="12">z biasem (przesunięta)</text>
+            <text x="240" y="285" text-anchor="middle" fill="#cbd5e1" font-size="13">bias przesuwa, w którym miejscu neuron „zapala się”</text>
+          </svg>
+          <div class="caption">Obrazek: bias przesuwa krzywą sigmoidy w lewo/prawo — bez niego próg jest „przyklejony” do zera.</div>
+        </div>
+        <div class="card code-ref">
+          <span class="badge c">Kod</span>
+          <pre><code># wejście warstwy z doklejonym biasem −1
+layer1_input = np.vstack([-1, input_vector.reshape(-1, 1)])
+...
+layer2_input = np.vstack([-1, output_layer1.reshape(-1, 1)])</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- 24b. BIAS - KONKRETNA ODPOWIEDŹ -->
+    <section class="slide">
+      <span class="tag">Bias · odpowiedź wprost</span>
+      <h2>Po co bias? Bias = ruchomy próg neuronu</h2>
+      <div class="cols">
+        <div class="card theory">
+          <span class="badge t">Odpowiedź w jednym zdaniu</span>
+          <p><b>Bias pozwala neuronowi zdecydować, ile „dowodów” potrzeba, zanim się zapali</b> — przesuwa punkt, w którym wyjście przechodzi przez 0.5.</p>
+          <p style="margin-top:10px">Pobudzenie z biasem to:</p>
+          <div class="formula">net = (w₁x₁ + w₂x₂) − próg</div>
+          <p>gdzie <code>próg = w₀</code> (waga przy stałym wejściu −1). Sieć sama uczy się tego progu.</p>
+          <div class="why"><b>Problem bez biasu:</b> gdy wszystkie wejścia = 0, to net = 0 i wyjście = σ(0) = <b>0.5 — zawsze</b>. Neuron nie potrafi nauczyć się innej odpowiedzi dla zerowego wejścia. Granica decyzyjna jest „przyklejona” do zera i nie da się jej przesunąć.</div>
+        </div>
+        <div class="card">
+          <span class="badge c">Przykład liczbowy</span>
+          <p style="margin:0 0 6px">Neuron z jedną cechą (waga = 1, β = 1). Chcemy, by „zapalał się” dopiero gdy <code>x &gt; 0.6</code>.</p>
+          <table class="mtx" style="width:100%">
+            <caption>to samo wejście x, dwie sytuacje</caption>
+            <tr><th>x</th><th>bez biasu: σ(x)</th><th>z biasem w₀=0.6: σ(x−0.6)</th></tr>
+            <tr><td class="rl">0.0</td><td>0.50</td><td>0.35</td></tr>
+            <tr><td class="rl">0.4</td><td>0.60</td><td>0.45</td></tr>
+            <tr><td class="rl">0.6</td><td>0.65</td><td class="up">0.50 ←próg</td></tr>
+            <tr><td class="rl">1.0</td><td>0.73</td><td>0.60</td></tr>
+          </table>
+          <div class="why" style="margin-top:10px"><b>Widać to wprost:</b> bez biasu punkt „0.5” jest przy x=0. Bias przesuwa go do x=0.6 — neuron wymaga teraz <u>więcej</u> sygnału, zanim odpowie „tak”.</div>
+        </div>
+      </div>
+      <div class="why" style="margin-top:16px"><b>Dlaczego to ważne dla XOR?</b> Poszczególne neurony ukryte muszą mieć <u>różne</u> progi (jeden zapala się łatwo, drugi dopiero przy mocnym sygnale), żeby ich kombinacja utworzyła granicę łamaną. Bez biasu wszystkie progi tkwiłyby w zerze i sieć nie ułożyłaby XOR-a. Dlatego każda macierz wag ma dodatkowy wiersz (<code>+1</code>), a wejście warstwy zaczyna się od stałej <code>−1</code>.</div>
+    </section>
+
+    <!-- 25. FORWARD PASS run2 -->
+    <section class="slide" id="toc-run2">
+      <span class="tag">run2 · forward pass przez 2 warstwy</span>
+      <h2>Sygnał płynie przez dwie warstwy</h2>
+      <div class="triad">
+        <div class="card theory">
+          <span class="badge t">Teoria</span>
+          <p>Wyjście warstwy 1 staje się wejściem warstwy 2 (z dodanym biasem):</p>
+          <div class="formula">output_layer1 = σ(β · W1ᵀ · [−1, x])</div>
+          <div class="formula">output_layer2 = σ(β · W2ᵀ · [−1, output_layer1])</div>
+          <div class="why"><b>Kluczowe:</b> <code>run2</code> zwraca <u>oba</u> wyjścia. <code>output_layer1</code> jest potrzebne później do backpropagation.</div>
+        </div>
+        <div class="visual">
+          <svg viewBox="0 0 500 250" role="img" aria-label="Forward pass dwuwarstwowy">
+            <defs><marker id="aF2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#93c5fd"/></marker></defs>
+            <rect x="14" y="95" width="92" height="62" rx="12" fill="#0f172a" stroke="#38bdf8"/><text x="60" y="122" text-anchor="middle" fill="#e0f2fe" font-size="13">wejście</text><text x="60" y="142" text-anchor="middle" fill="#bae6fd" font-size="11">[−1, x]</text>
+            <rect x="160" y="86" width="120" height="80" rx="12" fill="#111827" stroke="#a78bfa"/><text x="220" y="116" text-anchor="middle" fill="#ede9fe" font-size="13" font-weight="700">warstwa 1</text><text x="220" y="138" text-anchor="middle" fill="#ddd6fe" font-size="11">output_layer1</text>
+            <rect x="334" y="86" width="120" height="80" rx="12" fill="#0f172a" stroke="#34d399"/><text x="394" y="116" text-anchor="middle" fill="#bbf7d0" font-size="13" font-weight="700">warstwa 2</text><text x="394" y="138" text-anchor="middle" fill="#bbf7d0" font-size="11">output_layer2</text>
+            <line x1="106" y1="126" x2="158" y2="126" stroke="#93c5fd" stroke-width="5" marker-end="url(#aF2)"/>
+            <line x1="280" y1="126" x2="332" y2="126" stroke="#93c5fd" stroke-width="5" marker-end="url(#aF2)"/>
+            <text x="220" y="200" text-anchor="middle" fill="#c4b5fd" font-size="12">W1</text>
+            <text x="394" y="200" text-anchor="middle" fill="#86efac" font-size="12">W2</text>
+            <text x="250" y="226" text-anchor="middle" fill="#cbd5e1" font-size="12">wyjście warstwy 1 = wejście warstwy 2 (+ bias)</text>
+          </svg>
+          <div class="caption">Obrazek: dwa razy ten sam schemat „suma ważona → sigmoida”, ułożone szeregowo.</div>
+        </div>
+        <div class="card code-ref">
+          <span class="badge c">Kod</span>
+          <pre><code>def run2(weights_layer1, weights_layer2, input_vector):
+    beta = 5
+    layer1_input = np.vstack([-1, input_vector.reshape(-1,1)])
+    net_input_layer1 = weights_layer1.T @ layer1_input
+    output_layer1 = 1 / (1 + np.exp(-beta * net_input_layer1))
+    layer2_input = np.vstack([-1, output_layer1.reshape(-1,1)])
+    net_input_layer2 = weights_layer2.T @ layer2_input
+    output_layer2 = 1 / (1 + np.exp(-beta * net_input_layer2))
+    return output_layer1, output_layer2</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- 26. BACKPROPAGATION - IDEA -->
+    <section class="slide" id="toc-backprop">
+      <span class="tag">Backpropagation · serce uczenia 2 warstw</span>
+      <h2>Wsteczna propagacja błędu — idea</h2>
+      <div class="triad">
+        <div class="card theory">
+          <span class="badge t">Teoria</span>
+          <p>Błąd znamy tylko na <b>wyjściu</b>. Ale poprawić trzeba też wagi warstwy ukrytej, która błędu nie „widzi” wprost.</p>
+          <p>Rozwiązanie: <b>cofnij</b> błąd z wyjścia do warstwy ukrytej przez te same wagi <code>W2</code>, którymi sygnał szedł w przód.</p>
+          <div class="why"><b>Intuicja „rozliczenia winy”:</b> każdy neuron ukryty odpowiada za błąd na tyle, na ile mocno (przez swoje wagi) wpłynął na wyjście.</div>
+        </div>
+        <div class="visual">
+          <svg viewBox="0 0 500 280" role="img" aria-label="Forward i backward">
+            <defs>
+              <marker id="aFwd2" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#38bdf8"/></marker>
+              <marker id="aBwd2" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#fb7185"/></marker>
+            </defs>
+            <rect x="20" y="110" width="100" height="60" rx="12" fill="#0f172a" stroke="#38bdf8"/><text x="70" y="145" text-anchor="middle" fill="#e0f2fe" font-size="13">wejście</text>
+            <rect x="200" y="110" width="100" height="60" rx="12" fill="#111827" stroke="#a78bfa"/><text x="250" y="138" text-anchor="middle" fill="#ede9fe" font-size="13">ukryta</text><text x="250" y="156" text-anchor="middle" fill="#ddd6fe" font-size="11">out1</text>
+            <rect x="380" y="110" width="100" height="60" rx="12" fill="#0f172a" stroke="#34d399"/><text x="430" y="138" text-anchor="middle" fill="#bbf7d0" font-size="13">wyjście</text><text x="430" y="156" text-anchor="middle" fill="#bbf7d0" font-size="11">out2</text>
+            <!-- forward (góra) -->
+            <line x1="120" y1="128" x2="198" y2="128" stroke="#38bdf8" stroke-width="4" marker-end="url(#aFwd2)"/>
+            <line x1="300" y1="128" x2="378" y2="128" stroke="#38bdf8" stroke-width="4" marker-end="url(#aFwd2)"/>
+            <text x="250" y="96" text-anchor="middle" fill="#bae6fd" font-size="12">► forward: licz wyjście</text>
+            <!-- backward (dół) -->
+            <line x1="378" y1="152" x2="300" y2="152" stroke="#fb7185" stroke-width="4" marker-end="url(#aBwd2)"/>
+            <text x="250" y="200" text-anchor="middle" fill="#fecdd3" font-size="12">◄ backward: cofnij błąd przez W2</text>
+            <rect x="360" y="206" width="140" height="40" rx="9" fill="#0f172a" stroke="#fbbf24"/><text x="430" y="231" text-anchor="middle" fill="#fde68a" font-size="12">error_layer2</text>
+            <rect x="180" y="206" width="150" height="40" rx="9" fill="#0f172a" stroke="#fb7185"/><text x="255" y="231" text-anchor="middle" fill="#fecdd3" font-size="11">error_layer1 = W2·delta2</text>
+            <line x1="360" y1="226" x2="332" y2="226" stroke="#fb7185" stroke-width="3" marker-end="url(#aBwd2)"/>
+          </svg>
+          <div class="caption">Obrazek: niebieski = forward (w przód), czerwony = błąd cofany w tył do warstwy ukrytej.</div>
+        </div>
+        <div class="card code-ref">
+          <span class="badge c">Kod</span>
+          <pre><code># błąd i delta wyjścia
+error_layer2 = target - output_layer2
+delta_layer2 = beta * error_layer2 * output_layer2 * (1 - output_layer2)
+
+# cofnięcie błędu do warstwy ukrytej (pomijamy wiersz biasu)
+error_layer1 = weights_layer2[1:, :] @ delta_layer2
+delta_layer1 = beta * error_layer1 * output_layer1 * (1 - output_layer1)</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- 27. BACKPROPAGATION - WZORY KROK PO KROKU -->
+    <section class="slide">
+      <span class="tag">Backpropagation · pełne wzory</span>
+      <h2>Cztery kroki wstecznej propagacji</h2>
+      <div class="cols">
+        <div class="card">
+          <h3><span class="stepnum">1</span>Delta wyjścia</h3>
+          <div class="formula">error₂ = target − output₂</div>
+          <div class="formula">delta₂ = β · error₂ · out₂·(1−out₂)</div>
+          <p style="color:var(--muted);font-size:15px">Tak samo jak w sieci jednowarstwowej — błąd razy pochodna sigmoidy.</p>
+
+          <h3 style="margin-top:14px"><span class="stepnum">2</span>Cofnięcie błędu do ukrytej</h3>
+          <div class="formula">error₁ = W2[1:, :] · delta₂</div>
+          <div class="why"><b>Dlaczego <code>[1:, :]</code>?</b> Pomijamy wiersz wagi biasu — bias nie jest wyjściem neuronu ukrytego, więc nie cofamy do niego błędu.</div>
+        </div>
+        <div class="card">
+          <h3><span class="stepnum">3</span>Delta ukrytej</h3>
+          <div class="formula">delta₁ = β · error₁ · out₁·(1−out₁)</div>
+          <p style="color:var(--muted);font-size:15px">Znów błąd (już cofnięty) razy pochodna sigmoidy warstwy ukrytej.</p>
+
+          <h3 style="margin-top:14px"><span class="stepnum">4</span>Poprawki obu macierzy</h3>
+          <div class="formula">ΔW1 = η · [−1, x] · delta₁ᵀ</div>
+          <div class="formula">ΔW2 = η · [−1, out₁] · delta₂ᵀ</div>
+          <div class="why"><b>Ta sama reguła delty</b> co przy jednej warstwie — tylko stosowana dwa razy, każda warstwa ze swoim wejściem i swoją deltą.</div>
+        </div>
+      </div>
+      <div class="card code-ref" style="margin-top:16px">
+        <span class="badge c">Kod (train2)</span>
+        <pre><code>error_layer2 = target - output_layer2
+delta_layer2 = beta * error_layer2 * output_layer2 * (1 - output_layer2)
+
+error_layer1 = weights_layer2[1:, :] @ delta_layer2
+delta_layer1 = beta * error_layer1 * output_layer1 * (1 - output_layer1)
+
+weight_update_layer1 = learning_rate * layer1_input @ delta_layer1.T
+weight_update_layer2 = learning_rate * layer2_input @ delta_layer2.T
+
+weights_layer1 = weights_layer1 + weight_update_layer1
+weights_layer2 = weights_layer2 + weight_update_layer2</code></pre>
+      </div>
+    </section>
+
+    <!-- 27b. PEŁNY KROK 2-WARSTWOWY Z WYLICZENIAMI KAŻDEGO PARAMETRU -->
+    <section class="slide" id="toc-krok2">
+      <span class="tag">Pełny krok 2 warstw · wszystkie parametry</span>
+      <h2>Jeden krok backpropagation — pełne wyliczenia</h2>
+      <p style="color:var(--muted); margin-top:-2px">Przykład XOR: wejście (1, 0) → cel 1. Stałe: β = 5, η = 0.1. Wagi startowe losowe (seed 0 dla powtarzalności).</p>
+
+      <div class="cols">
+        <div class="card">
+          <h3><span class="stepnum">1</span>Stan sieci PRZED</h3>
+          <div style="display:flex; gap:22px; flex-wrap:wrap; align-items:flex-start">
+            <table class="mtx">
+              <caption>weights_layer1 (3×2)</caption>
+              <tr><th></th><th>h₁</th><th>h₂</th></tr>
+              <tr><td class="rl">−1 (bias)</td><td>0.0098</td><td>0.0430</td></tr>
+              <tr><td class="rl">x₁</td><td>0.0206</td><td>0.0090</td></tr>
+              <tr><td class="rl">x₂</td><td>−0.0153</td><td>0.0292</td></tr>
+            </table>
+            <table class="mtx">
+              <caption>weights_layer2 (3×1)</caption>
+              <tr><th></th><th>y</th></tr>
+              <tr><td class="rl">−1 (bias)</td><td>−0.0125</td></tr>
+              <tr><td class="rl">h₁</td><td>0.0784</td></tr>
+              <tr><td class="rl">h₂</td><td>0.0927</td></tr>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <h3><span class="stepnum">2</span>Dane wejściowe</h3>
+          <div class="kvbox">
+            <span class="lab">input_vector</span> = [x₁, x₂] = [1, 0]<br>
+            <span class="lab">target</span> = [1]&nbsp;&nbsp;(XOR: różne wejścia → 1)<br><br>
+            wejście z biasem:<br>
+            &nbsp;&nbsp;layer1_input = [−1, 1, 0]
+          </div>
+        </div>
+      </div>
+
+      <div class="card step-card">
+        <h3><span class="stepnum">3</span>Forward — warstwa ukryta (h₁, h₂)</h3>
+        <p style="margin:4px 0">net_input_layer1 = W1ᵀ · [−1, 1, 0]:</p>
+        <div class="formula">net(h₁) = 0.0098·(−1) + 0.0206·1 + (−0.0153)·0 = +0.0108</div>
+        <div class="formula">net(h₂) = 0.0430·(−1) + 0.0090·1 + 0.0292·0 = −0.0341</div>
+        <p style="margin:8px 0 4px">output_layer1 = σ(5 · net):</p>
+        <div class="formula">out(h₁) = σ(5·0.0108) = 0.5135 &nbsp;|&nbsp; out(h₂) = σ(5·−0.0341) = 0.4575</div>
+      </div>
+
+      <div class="card step-card">
+        <h3><span class="stepnum">4</span>Forward — warstwa wyjściowa (y)</h3>
+        <p style="margin:4px 0">layer2_input = [−1, out(h₁), out(h₂)] = [−1, 0.5135, 0.4575]:</p>
+        <div class="formula">net(y) = (−0.0125)·(−1) + 0.0784·0.5135 + 0.0927·0.4575 = +0.0951</div>
+        <div class="formula">output_layer2 = σ(5·0.0951) = 0.6167</div>
+      </div>
+
+      <div class="card step-card">
+        <h3><span class="stepnum">5</span>Backpropagation — błędy i delty</h3>
+        <p style="margin:4px 0">Wyjście:</p>
+        <div class="formula">error₂ = target − out(y) = 1 − 0.6167 = 0.3833</div>
+        <div class="formula">delta₂ = 5 · 0.3833 · 0.6167 · (1−0.6167) = 0.4530</div>
+        <p style="margin:8px 0 4px">Cofnięcie błędu do warstwy ukrytej (error₁ = W2[1:,:] · delta₂):</p>
+        <div class="formula">error₁(h₁) = 0.0784 · 0.4530 = 0.0355 &nbsp;|&nbsp; error₁(h₂) = 0.0927 · 0.4530 = 0.0420</div>
+        <div class="formula">delta₁(h₁) = 5·0.0355·0.5135·(1−0.5135) = 0.0443</div>
+        <div class="formula">delta₁(h₂) = 5·0.0420·0.4575·(1−0.4575) = 0.0521</div>
+      </div>
+
+      <div class="card step-card">
+        <h3><span class="stepnum">6</span>Poprawki obu macierzy (Δw = η · wejście · deltaᵀ)</h3>
+        <div style="display:flex; gap:22px; flex-wrap:wrap; align-items:flex-start">
+          <table class="mtx">
+            <caption>ΔW1 = 0.1 · [−1,1,0] · delta₁ᵀ</caption>
+            <tr><th></th><th>h₁</th><th>h₂</th></tr>
+            <tr><td class="rl">−1 (bias)</td><td class="dn">−0.0044</td><td class="dn">−0.0052</td></tr>
+            <tr><td class="rl">x₁</td><td class="up">+0.0044</td><td class="up">+0.0052</td></tr>
+            <tr><td class="rl">x₂</td><td>0.0000</td><td>0.0000</td></tr>
+          </table>
+          <table class="mtx">
+            <caption>ΔW2 = 0.1 · [−1, out₁] · delta₂ᵀ</caption>
+            <tr><th></th><th>y</th></tr>
+            <tr><td class="rl">−1 (bias)</td><td class="dn">−0.0453</td></tr>
+            <tr><td class="rl">h₁</td><td class="up">+0.0233</td></tr>
+            <tr><td class="rl">h₂</td><td class="up">+0.0207</td></tr>
+          </table>
+        </div>
+        <div class="why">Cecha <code>x₂ = 0</code> → jej wiersz w ΔW1 to zera (nieaktywna cecha nie rusza swoich wag). Bias (−1) zawsze aktywny, więc jego wagi się zmieniają.</div>
+      </div>
+
+      <div class="card step-card">
+        <h3><span class="stepnum">7</span>Stan sieci PO: BYŁO → JEST</h3>
+        <div style="display:flex; gap:22px; flex-wrap:wrap; align-items:flex-start">
+          <table class="mtx">
+            <caption>weights_layer1 · <span class="o">przed</span> → <b>po</b></caption>
+            <tr><th></th><th>h₁</th><th>h₂</th></tr>
+            <tr><td class="rl">−1 (bias)</td><td class="dn"><span class="o">0.0098</span> → <b>0.0053</b> ▼</td><td class="dn"><span class="o">0.0430</span> → <b>0.0378</b> ▼</td></tr>
+            <tr><td class="rl">x₁</td><td class="up"><span class="o">0.0206</span> → <b>0.0250</b> ▲</td><td class="up"><span class="o">0.0090</span> → <b>0.0142</b> ▲</td></tr>
+            <tr><td class="rl">x₂</td><td><span class="o">−0.0153</span> → <b>−0.0153</b> ≈</td><td><span class="o">0.0292</span> → <b>0.0292</b> ≈</td></tr>
+          </table>
+          <table class="mtx">
+            <caption>weights_layer2 · <span class="o">przed</span> → <b>po</b></caption>
+            <tr><th></th><th>y</th></tr>
+            <tr><td class="rl">−1 (bias)</td><td class="dn"><span class="o">−0.0125</span> → <b>−0.0578</b> ▼</td></tr>
+            <tr><td class="rl">h₁</td><td class="up"><span class="o">0.0784</span> → <b>0.1016</b> ▲</td></tr>
+            <tr><td class="rl">h₂</td><td class="up"><span class="o">0.0927</span> → <b>0.1135</b> ▲</td></tr>
+          </table>
+        </div>
+        <div class="why"><b>Efekt jednego kroku:</b> cel = 1, a sieć dała 0.6167 (za mało), więc wagi prowadzące do mocniejszego wyjścia (h₁, h₂ → y) wzrosły. To jeden z 5000 kroków — po wszystkich sieć trafia w XOR.</div>
+      </div>
+    </section>
+
+    <!-- 28. XOR PRZED VS PO -->
+    <section class="slide" id="toc-xorwynik">
+      <span class="tag">Wynik · XOR nauczony</span>
+      <h2>XOR: przed i po treningu</h2>
+      <div class="triad">
+        <div class="card theory">
+          <span class="badge t">Teoria</span>
+          <p>Przed treningiem wszystkie wyjścia są blisko 0.5–0.6 (sieć „nie wie”). Po 5000 krokach backpropagation wyjścia trafiają w XOR.</p>
+          <div class="why"><b>Dlaczego aż 5000 kroków?</b> Granica nieliniowa jest trudniejsza niż prosta z części 1 (tam starczyło 100) — dwie warstwy potrzebują więcej iteracji, by się „dostroić”.</div>
+        </div>
+        <div class="visual">
+          <table class="mtx" style="margin:0 auto">
+            <caption>wyjście sieci dla 4 wzorców XOR (wartości reprezentatywne — wagi startowe są losowe)</caption>
+            <tr><th>wejście</th><th>cel</th><th>przed</th><th>po</th></tr>
+            <tr><td class="rl">(0, 0)</td><td>0</td><td>0.61</td><td class="up">0.025 ✓</td></tr>
+            <tr><td class="rl">(0, 1)</td><td>1</td><td>0.62</td><td class="up">0.971 ✓</td></tr>
+            <tr><td class="rl">(1, 0)</td><td>1</td><td>0.62</td><td class="up">0.972 ✓</td></tr>
+            <tr><td class="rl">(1, 1)</td><td>0</td><td>0.62</td><td class="up">0.036 ✓</td></tr>
+          </table>
+          <div class="caption">Obrazek: po treningu wyjścia są blisko celu [0, 1, 1, 0] — sieć nauczyła się XOR.</div>
+        </div>
+        <div class="card code-ref">
+          <span class="badge c">Kod</span>
+          <pre><code>num_iterations = 5000
+weights_layer1_after, weights_layer2_after = train2(
+    weights_layer1_before, weights_layer2_before,
+    training_inputs, targets, num_iterations)
+
+# wynik ≈ [0.02, 0.97, 0.97, 0.04]  vs  cel [0, 1, 1, 0]</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- 29. PODSUMOWANIE 1 vs 2 WARSTWY -->
+    <section class="slide">
+      <span class="tag">Podsumowanie części 2</span>
+      <h2>Jedna warstwa vs dwie warstwy</h2>
+      <div class="cols">
+        <div class="card">
+          <span class="badge t">1 warstwa (część 1)</span>
+          <ul>
+            <li>regresja logistyczna, jedna macierz wag,</li>
+            <li>granica decyzyjna = <b>prosta</b>,</li>
+            <li>uczenie: reguła delty (błąd × pochodna),</li>
+            <li>rozwiązuje zadania liniowo separowalne.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="badge c">2 warstwy (część 2)</span>
+          <ul>
+            <li>warstwa ukryta + bias, <b>dwie</b> macierze wag,</li>
+            <li>granica decyzyjna = <b>nieliniowa</b> (np. XOR),</li>
+            <li>uczenie: <b>backpropagation</b> — błąd cofany przez W2,</li>
+            <li>ta sama reguła delty stosowana w obu warstwach.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="why" style="margin-top:16px"><b>Najważniejsza myśl:</b> druga warstwa daje sieci nieliniowość, a backpropagation to po prostu reguła łańcuchowa: policz błąd na wyjściu, cofnij go przez wagi do warstwy ukrytej i popraw obie warstwy tą samą regułą delty.</div>
+    </section>
+
+  </main>
+
+  <nav class="controls" aria-label="Nawigacja prezentacji">
+    <button type="button" id="prev">← Wstecz</button>
+    <span class="counter" id="counter"></span>
+    <button type="button" id="next">Dalej →</button>
+  </nav>
+  <div class="progress"><div class="bar" id="bar"></div></div>
+
+  <script>
+    const slides = Array.from(document.querySelectorAll(".slide"));
+    const counter = document.getElementById("counter");
+    const bar = document.getElementById("bar");
+    let index = 0;
+    function showSlide(nextIndex) {
+      index = Math.max(0, Math.min(slides.length - 1, nextIndex));
+      slides.forEach((slide, i) => slide.classList.toggle("active", i === index));
+      counter.textContent = `${index + 1} / ${slides.length}`;
+      bar.style.width = `${((index + 1) / slides.length) * 100}%`;
+      window.scrollTo(0, 0);
+    }
+    document.getElementById("prev").addEventListener("click", () => showSlide(index - 1));
+    document.getElementById("next").addEventListener("click", () => showSlide(index + 1));
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowRight" || event.key === " ") showSlide(index + 1);
+      if (event.key === "ArrowLeft") showSlide(index - 1);
+      if (event.key === "Home") showSlide(0);
+      if (event.key === "End") showSlide(slides.length - 1);
+    });
+    document.querySelectorAll(".toc a[data-target]").forEach((link) => {
+      link.addEventListener("click", (event) => {
+        event.preventDefault();
+        const target = document.getElementById(link.getAttribute("data-target"));
+        const i = slides.indexOf(target);
+        if (i >= 0) showSlide(i);
+      });
+    });
+    showSlide(0);
+  </script>
+</body>
+</html>
